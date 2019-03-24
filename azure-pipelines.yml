@@ -13,11 +13,9 @@ variables:
   engineDir: 'engine/hexen2'
 
 steps:
-- task: NuGetToolInstaller@0
-  inputs: |
-    versionSpec: '>=3.5' 
-    checkLatest: false
+- task: NuGetCommand@1
+  inputs:
+    command: restore sdl
 - script: |
-    Install-Package SDL -Version 1.2.15.16
     make -C $(engineDir) glh2
   displayName: 'make'
