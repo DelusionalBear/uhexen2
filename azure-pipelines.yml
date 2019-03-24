@@ -15,8 +15,8 @@ variables:
 steps:
 - task: NuGetToolInstaller@0
   inputs: |
-    versionSpec: '4.3.0' 
-    checkLatest: true # Optional
+    versionSpec: '>=3.5' 
+    checkLatest: false
 - script: |
     Install-Package SDL -Version 1.2.15.16
     make -C $(engineDir) glh2
