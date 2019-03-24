@@ -14,7 +14,7 @@ variables:
 
 steps:
 - task: NuGetToolInstaller@0
-  inputs:
+  inputs: |
     #versionSpec: '4.3.0' 
     #checkLatest: false # Optional
 - script: |
