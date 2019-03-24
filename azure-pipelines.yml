@@ -15,7 +15,7 @@ variables:
 steps:
 - task: NuGetCommand@1
   inputs:
-    command: restore sdl
+    command: restore
 - script: |
     make -C $(engineDir) glh2
   displayName: 'make'
