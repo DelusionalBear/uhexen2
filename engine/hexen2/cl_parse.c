@@ -801,13 +801,13 @@ static void CL_ParseClientdata (int bits)
 		i = MSG_ReadLong ();
 	*/
 
-	if (cl.items != i)
+	if (cl.ex_inventory[0].items != i)
 	{	// set flash times
 		Sbar_Changed();
 		for (j = 0; j < 32; j++)
-			if ((i & (1<<j)) && !(cl.items & (1<<j)))
-				cl.item_gettime[j] = cl.time;
-		cl.items = i;
+			if ((i & (1<<j)) && !(cl.ex_inventory[0].items & (1<<j)))
+				cl.ex_inventory[0].item_gettime[j] = cl.time;
+		cl.ex_inventory[0].items = i;
 	}
 
 	cl.onground = ((bits & SU_ONGROUND) != 0);

@@ -3300,6 +3300,56 @@ static void PF_strhash(void)
 	//PR_RunError("%s: overflow", __thisfunc__);
 }
 
+static void PF_register_ex_item(void)
+{
+	const char	*item_img;
+	float item_id;
+
+	if (sv.state != ss_loading && !ignore_precache)
+		PR_RunError("%s: Extended Inventory Items can only be registered in spawn functions", __thisfunc__);
+
+	item_img = G_STRING(OFS_PARM0);
+	item_id = G_FLOAT(OFS_PARM1);
+	PR_CheckEmptyString(item_img);
+
+	//PR_RunError("%s: overflow", __thisfunc__);
+}
+
+static void PF_update_ex_item(void)
+{
+	edict_t	*ent;
+	client_t	*client;
+	int i;
+
+	float item_id;
+	float item_count;
+	float result;
+
+	ent = G_EDICT(OFS_PARM0);
+	item_id = G_FLOAT(OFS_PARM1);
+	item_count = G_FLOAT(OFS_PARM2);
+
+	i = NUM_FOR_EDICT(ent);
+	if (i < 1 || i > svs.maxclients)
+		PR_RunError("Entity is not a client");
+
+	client = svs.clients + (i - 1);
+
+	
+	for (i = 0; i < 32; i++)
+	{
+		if (client->ex_inventory->item_id[i] == item_id)
+		{
+			client->ex_inventory->item_cnt[i] += item_count;
+			result = client->ex_inventory->item_cnt[i];
+			break;
+		}
+	}
+
+	G_FLOAT(OFS_RETURN) = result;
+	//PR_RunError("%s: overflow", __thisfunc__);
+}
+
 
 static builtin_t pr_builtin[] =
 {
@@ -3441,8 +3491,8 @@ static builtin_t pr_builtin[] =
 	PF_set_extra_flags,	// void(string model, int flags) set_extra_flags	= #107
 	PF_set_fx_color,	// void(string model, float r, float g, float b, float a) set_fx_color	= #108
 	PF_strhash,		// float(string s1) strhash = #109
-	PF_Fixme,
-	PF_Fixme,
+	PF_register_ex_item,  // void (string img, float id)
+	PF_update_ex_item,  // float (entity forent, float id, float amount)
 	PF_Fixme,
 	PF_Fixme,
 #endif

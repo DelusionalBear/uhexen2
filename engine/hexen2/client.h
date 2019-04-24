@@ -140,11 +140,6 @@ typedef struct
 
 // information for local display
 	int		stats[MAX_CL_STATS];	// health, etc
-	int		inv_order[MAX_INVENTORY];
-	int		inv_count, inv_startpos, inv_selected;
-	int		items;		// inventory bit flags
-	float		item_gettime[32];	// cl.time of aquiring item, for blinking
-	float		faceanimtime;		// use anim frame if cl.time < this
 
 	entvars_t	v;		// NOTE: not every field will be update
 					// you must specifically add them in
@@ -246,6 +241,7 @@ typedef struct
 
 // mission pack, objectives strings
 	unsigned int	info_mask, info_mask2;
+	ex_inventory_t ex_inventory[1];
 } client_state_t;
 
 

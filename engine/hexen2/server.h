@@ -89,6 +89,17 @@ typedef struct
 #define	NUM_PING_TIMES		16
 #define	NUM_SPAWN_PARMS		16
 
+typedef struct ex_inventory_s
+{
+	int		inv_count, inv_startpos, inv_selected;
+	int		items;		// inventory bit flags
+	float	item_gettime[32];	// cl.time of aquiring item, for blinking
+	float	faceanimtime;		// use anim frame if cl.time < this
+	int		inv_order[32];
+	int		item_id[32];
+	int		item_cnt[32];
+} ex_inventory_t;
+
 typedef struct client_s
 {
 	qboolean	active;		// false = client is free
@@ -132,6 +143,7 @@ typedef struct client_s
 
 // mission pack, objectives strings
 	unsigned int	info_mask, info_mask2;
+	ex_inventory_t *ex_inventory;
 } client_t;
 
 
@@ -269,6 +281,7 @@ void SV_StartParticle4 (vec3_t org, float radius, int color, int effect, int cou
 void SV_StartSound (edict_t *entity, int channel, const char *sample, int volume, float attenuation);
 void SV_StopSound (edict_t *entity, int channel);
 void SV_UpdateSoundPos (edict_t *entity, int channel);
+void SV_UpdateExInventory(edict_t *entity, int inv_id, int inv_cnt);
 
 void SV_DropClient (qboolean crash);
 
