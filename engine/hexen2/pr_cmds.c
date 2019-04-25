@@ -3304,6 +3304,7 @@ static void PF_register_ex_item(void)
 {
 	const char	*item_img;
 	float item_id;
+	int i;
 
 	if (sv.state != ss_loading && !ignore_precache)
 		PR_RunError("%s: Extended Inventory Items can only be registered in spawn functions", __thisfunc__);
@@ -3311,6 +3312,33 @@ static void PF_register_ex_item(void)
 	item_img = G_STRING(OFS_PARM0);
 	item_id = G_FLOAT(OFS_PARM1);
 	PR_CheckEmptyString(item_img);
+	if (sv.ex_items == NULL)
+	{
+		sv.ex_items = (ex_item_t *)Hunk_AllocName(10 * sizeof(*sv.ex_items), "ex_items");
+		sv.num_ex_items = 1;
+		sv.ex_items[0].id = (int)item_id;
+		sv.ex_items[0].icon = item_img;
+	}
+	else
+	{
+		for (i = 0; i < 10; i++)
+		{
+			if (&sv.ex_items[i] != NULL)
+			{
+				if (sv.ex_items[i].id == (int)item_id)
+				{
+					sv.ex_items[i].icon = item_img;
+					break;
+				}
+			}
+			else
+			{
+				sv.ex_items[i].id = (int)item_id;
+				sv.ex_items[i].icon = item_img;
+				break;
+			}
+		}
+	}
 
 	//PR_RunError("%s: overflow", __thisfunc__);
 }
@@ -3323,7 +3351,7 @@ static void PF_update_ex_item(void)
 
 	float item_id;
 	float item_count;
-	float result;
+	float result = 0.0f;
 
 	ent = G_EDICT(OFS_PARM0);
 	item_id = G_FLOAT(OFS_PARM1);
@@ -3335,7 +3363,7 @@ static void PF_update_ex_item(void)
 
 	client = svs.clients + (i - 1);
 
-	
+	// try to find a matching slot
 	for (i = 0; i < 32; i++)
 	{
 		if (client->ex_inventory->item_id[i] == item_id)
@@ -3343,6 +3371,21 @@ static void PF_update_ex_item(void)
 			client->ex_inventory->item_cnt[i] += item_count;
 			result = client->ex_inventory->item_cnt[i];
 			break;
+		}
+	}
+
+	// no matching slot found, create one at first empty
+	if (i == 32)
+	{
+		for (i = 0; i < 32; i++)
+		{
+			if (client->ex_inventory->item_id[i] == 0)
+			{
+				client->ex_inventory->item_id[i] += item_id;
+				client->ex_inventory->item_cnt[i] += item_count;
+				result = client->ex_inventory->item_cnt[i];
+				break;
+			}
 		}
 	}
 

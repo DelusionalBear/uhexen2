@@ -44,6 +44,12 @@ typedef enum
 
 typedef struct
 {
+	int			id;
+	char		*icon;
+} ex_item_t;
+
+typedef struct
+{
 	qboolean	active;		// false if only a net client
 
 	qboolean	paused;
@@ -66,6 +72,7 @@ typedef struct
 	const char	*sound_precache[MAX_SOUNDS];	// NULL terminated
 	const char	*lightstyles[MAX_LIGHTSTYLES];
 	struct EffectT	Effects[MAX_EFFECTS];
+	//shan inventory?
 
 	client_state2_t	*states;
 	int		num_edicts;
@@ -83,6 +90,8 @@ typedef struct
 
 	sizebuf_t	signon;
 	byte		signon_buf[NET_MAXMESSAGE];
+	ex_item_t	*ex_items;
+	int			num_ex_items;
 } server_t;
 
 
@@ -98,6 +107,7 @@ typedef struct ex_inventory_s
 	int		inv_order[32];
 	int		item_id[32];
 	int		item_cnt[32];
+	struct ex_inventory_t *next;
 } ex_inventory_t;
 
 typedef struct client_s
@@ -143,7 +153,7 @@ typedef struct client_s
 
 // mission pack, objectives strings
 	unsigned int	info_mask, info_mask2;
-	ex_inventory_t *ex_inventory;
+	ex_inventory_t ex_inventory[1];
 } client_t;
 
 

@@ -427,26 +427,6 @@ void SV_StartSound (edict_t *entity, int channel, const char *sample, int volume
 }
 
 /*
-==================
-SV_UpdateExInventory
-==================
-*/
-void SV_UpdateExInventory(edict_t *entity, int inv_id, int inv_cnt)
-{
-	int			ent;
-
-	if (sv.datagram.cursize > (sv_protocol == PROTOCOL_UH2_114 ? MAX_DATAGRAM_114 : MAX_DATAGRAM) - 2)
-		return;
-
-	ent = NUM_FOR_EDICT(entity);
-
-	MSG_WriteShort(&sv.datagram, ent);
-	MSG_WriteByte(&sv.datagram, inv_id);
-	MSG_WriteByte(&sv.datagram, inv_cnt);
-}
-
-
-/*
 ==============================================================================
 
 CLIENT SPAWNING
@@ -679,8 +659,7 @@ crosses a waterline.
 */
 
 static int	fatbytes;
-static byte	*fatpvs;
-static int	fatpvs_capacity;
+static byte	fatpvs[MAX_MAP_LEAFS/8];
 
 static void SV_AddToFatPVS (vec3_t org, mnode_t *node)
 {
@@ -725,19 +704,11 @@ Calculates a PVS that is the inclusive or of all leafs within 8 pixels of the
 given point.
 =============
 */
-byte *SV_FatPVS(vec3_t org) //johnfitz -- added worldmodel as a parameter
+static byte *SV_FatPVS (vec3_t org)
 {
-	fatbytes = (sv.worldmodel->numleafs + 7) >> 3; // ericw -- was +31, assumed to be a bug/typo
-	if (fatpvs == NULL || fatbytes > fatpvs_capacity)
-	{
-		fatpvs_capacity = fatbytes;
-		fatpvs = (byte *)realloc(fatpvs, fatpvs_capacity);
-		if (!fatpvs)
-			Sys_Error("SV_FatPVS: realloc() failed on %d bytes", fatpvs_capacity);
-	}
-
-	memset(fatpvs, 0, fatbytes);
-	SV_AddToFatPVS(org, sv.worldmodel->nodes); //johnfitz -- worldmodel as a parameter
+	fatbytes = (sv.worldmodel->numleafs+31)>>3;
+	memset (fatpvs, 0, fatbytes);
+	SV_AddToFatPVS (org, sv.worldmodel->nodes);
 	return fatpvs;
 }
 
