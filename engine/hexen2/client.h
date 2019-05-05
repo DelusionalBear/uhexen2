@@ -140,6 +140,9 @@ typedef struct
 
 // information for local display
 	int		stats[MAX_CL_STATS];	// health, etc
+	int		inv_count, inv_startpos, inv_selected;
+	int		items;				// inventory bit flags
+	float	faceanimtime;		// use anim frame if cl.time < this
 
 	entvars_t	v;		// NOTE: not every field will be update
 					// you must specifically add them in
@@ -207,6 +210,9 @@ typedef struct
 //
 	struct qmodel_s	*model_precache[MAX_MODELS];
 	struct sfx_s	*sound_precache[MAX_SOUNDS];
+	struct ex_inventory_page_s ex_inventory[1]; //ex_inventory_page_t *ex_inventory; 	// [cl.maxclients * (MAX_ITEMS_EX / 32)]
+	ex_item_t	*ex_items; // [MAX_ITEMS_EX or current count?]
+	int num_ex_items;
 
 	char		mapname[40];
 	char		levelname[40];		// for display on solo scoreboard
@@ -241,7 +247,6 @@ typedef struct
 
 // mission pack, objectives strings
 	unsigned int	info_mask, info_mask2;
-	ex_inventory_t ex_inventory[1];
 } client_state_t;
 
 

@@ -86,7 +86,7 @@ static void Host_Status_f (void)
 		print_fn = SV_ClientPrintf;
 
 	print_fn (_PRINT_NORMAL, "host:    %s\n", Cvar_VariableString ("hostname"));
-	print_fn (_PRINT_NORMAL, "version: %4.2f\n", ENGINE_VERSION);
+	print_fn (_PRINT_NORMAL, "version: %4.4f\n", ENGINE_VERSION);
 	if (tcpipAvailable)
 		print_fn (_PRINT_NORMAL, "tcp/ip:  %s\n", my_tcpip_address);
 	if (ipxAvailable)

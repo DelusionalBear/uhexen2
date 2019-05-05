@@ -3312,31 +3312,23 @@ static void PF_register_ex_item(void)
 	item_img = G_STRING(OFS_PARM0);
 	item_id = G_FLOAT(OFS_PARM1);
 	PR_CheckEmptyString(item_img);
-	if (sv.ex_items == NULL)
+
+	for (i = 0; i < MAX_ITEMS_EX; i++)
 	{
-		sv.ex_items = (ex_item_t *)Hunk_AllocName(10 * sizeof(*sv.ex_items), "ex_items");
-		sv.num_ex_items = 1;
-		sv.ex_items[0].id = (int)item_id;
-		sv.ex_items[0].icon = item_img;
-	}
-	else
-	{
-		for (i = 0; i < 10; i++)
+		if (sv.ex_items[i].id != 0)
 		{
-			if (&sv.ex_items[i] != NULL)
+			if (sv.ex_items[i].id == (int)item_id)
 			{
-				if (sv.ex_items[i].id == (int)item_id)
-				{
-					sv.ex_items[i].icon = item_img;
-					break;
-				}
-			}
-			else
-			{
-				sv.ex_items[i].id = (int)item_id;
-				sv.ex_items[i].icon = item_img;
+				q_strlcpy(sv.ex_items[i].icon, item_img, MAX_QPATH);
 				break;
 			}
+		}
+		else
+		{
+			sv.ex_items[i].id = (int)item_id;
+			q_strlcpy(sv.ex_items[i].icon, item_img, MAX_QPATH);
+			sv.num_ex_items += 1;
+			break;
 		}
 	}
 
@@ -3347,7 +3339,7 @@ static void PF_update_ex_item(void)
 {
 	edict_t	*ent;
 	client_t	*client;
-	int i;
+	int i, j;
 
 	float item_id;
 	float item_count;
@@ -3366,10 +3358,16 @@ static void PF_update_ex_item(void)
 	// try to find a matching slot
 	for (i = 0; i < 32; i++)
 	{
-		if (client->ex_inventory->item_id[i] == item_id)
+		if (client->ex_inventory.item_id[i] == item_id)
 		{
-			client->ex_inventory->item_cnt[i] += item_count;
-			result = client->ex_inventory->item_cnt[i];
+			client->ex_inventory.item_cnt[i] += item_count;
+			result = client->ex_inventory.item_cnt[i];
+
+			if (item_count)
+			{
+				client->ex_inventory.changed_items |= (1 << i);
+			}
+
 			break;
 		}
 	}
@@ -3379,11 +3377,17 @@ static void PF_update_ex_item(void)
 	{
 		for (i = 0; i < 32; i++)
 		{
-			if (client->ex_inventory->item_id[i] == 0)
+			if (client->ex_inventory.item_id[i] == 0)
 			{
-				client->ex_inventory->item_id[i] += item_id;
-				client->ex_inventory->item_cnt[i] += item_count;
-				result = client->ex_inventory->item_cnt[i];
+				client->ex_inventory.item_id[i] = item_id;
+				client->ex_inventory.item_cnt[i] += item_count;
+				result = client->ex_inventory.item_cnt[i];
+
+				if (item_count)
+				{
+					client->ex_inventory.changed_items |= (1 << i);
+					client->ex_inventory.new_items |= (1 << i);
+				}
 				break;
 			}
 		}

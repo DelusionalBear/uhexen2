@@ -227,10 +227,10 @@ static void CL_ParseServerInfo (void)
 {
 	const char	*str;
 	int		i, j;
-	int		nummodels, numsounds, numfx;
+	int		nummodels, numsounds, numfx, numitems;
 	char	model_precache[MAX_MODELS][MAX_QPATH];
 	char	sound_precache[MAX_SOUNDS][MAX_QPATH];
-// rjr	edict_t		*ent;
+	// rjr	edict_t		*ent;
 
 	Con_DPrintf ("Serverinfo packet received.\n");
 
@@ -423,9 +423,41 @@ static void CL_ParseServerInfo (void)
 			}
 		}
 
+		if (cl.ex_items == NULL)
+		{
+			cl.ex_items = (ex_item_t *)Hunk_AllocName(MAX_ITEMS_EX * sizeof(ex_item_t), "ex_items_cl");
+			cl.num_ex_items = 0;
+			/*
+			for (i = 0; i < 15; i++)
+			{
+				cl.num_ex_items += 1;
+				cl.ex_items[i].id = (int)(i + 1);
+				q_strlcpy(cl.ex_items[i].icon, va("gfx/arti%02d.lmp", i), MAX_QPATH);
+			}
+			*/
+		}
+		//shan check with no ex_items received?
+		for (numitems = 0; ; numitems++)
+		{
+			j = MSG_ReadByte();
+
+			if (j == 0)
+				break;
+
+			str = MSG_ReadString();
+			if (numitems == MAX_ITEMS_EX)
+			{
+				Con_Printf("Server sent too many item defs\n");
+				return;
+			}
+			cl.ex_items[numitems].id = j;
+			q_strlcpy(cl.ex_items[numitems].icon, str, MAX_QPATH);
+			cl.num_ex_items += 1;
+		}
+
 		if (precache.integer)
 		{
-			total_loading_size = nummodels + numsounds + numfx;
+			total_loading_size = nummodels + numsounds + numfx + numitems;
 		}
 	}
 
@@ -801,13 +833,13 @@ static void CL_ParseClientdata (int bits)
 		i = MSG_ReadLong ();
 	*/
 
-	if (cl.ex_inventory[0].items != i)
+	if (cl.items != i)
 	{	// set flash times
 		Sbar_Changed();
 		for (j = 0; j < 32; j++)
-			if ((i & (1<<j)) && !(cl.ex_inventory[0].items & (1<<j)))
+			if ((i & (1<<j)) && !(cl.items & (1<<j)))
 				cl.ex_inventory[0].item_gettime[j] = cl.time;
-		cl.ex_inventory[0].items = i;
+		cl.items = i;
 	}
 
 	cl.onground = ((bits & SU_ONGROUND) != 0);
@@ -1169,7 +1201,7 @@ void CL_ParseServerMessage (void)
 	static		double lasttime;
 	static		qboolean packet_loss = false;
 	entity_t	*ent;
-	int		sc1, sc2;
+	int		sc1, sc2, sc3;
 	byte		test;
 	float		compangles[2][3];
 	vec3_t		deltaangles;
@@ -1658,7 +1690,7 @@ void CL_ParseServerMessage (void)
 			break;
 
 		case svc_update_inv:
-			sc1 = sc2 = 0;
+			sc1 = sc2 = sc3 = 0;
 
 			test = MSG_ReadByte();
 			if (test & 1)
@@ -1699,9 +1731,79 @@ void CL_ParseServerMessage (void)
 			if (sc1 & SC1_EXPERIENCE)
 				cl.v.experience = MSG_ReadLong();
 			if (sc1 & SC1_CNT_TORCH)
+			{
 				cl.v.cnt_torch = MSG_ReadByte();
+
+				// try to find a matching slot
+				for (i = 0; i < MAX_INVENTORY_EX; i++)
+				{
+					if (cl.ex_inventory->item_id[i] == 1)
+					{
+						//cl.ex_inventory->changed_items |= (1 << i);
+						cl.ex_inventory->item_cnt[i] = (int)cl.v.cnt_torch;
+
+						break;
+					}
+				}
+
+				if (cl.v.cnt_torch != 0.0f)
+				{
+					// no matching slot found, create one at first empty
+					if (i == MAX_INVENTORY_EX)
+					{
+						for (i = 0; i < MAX_INVENTORY_EX; i++)
+						{
+							if (cl.ex_inventory->item_id[i] == 0)
+							{
+								cl.ex_inventory->item_id[i] = 1;
+								cl.ex_inventory->item_cnt[i] = (int)cl.v.cnt_torch;
+
+								//cl.ex_inventory->changed_items |= (1 << i);
+								//cl.ex_inventory->new_items |= (1 << i);
+
+								break;
+							}
+						}
+					}
+				}
+			}
 			if (sc1 & SC1_CNT_H_BOOST)
+			{
 				cl.v.cnt_h_boost = MSG_ReadByte();
+
+				// try to find a matching slot
+				for (i = 0; i < MAX_INVENTORY_EX; i++)
+				{
+					if (cl.ex_inventory->item_id[i] == 2)
+					{
+						cl.ex_inventory->item_cnt[i] = (int)cl.v.cnt_h_boost;
+						//cl.ex_inventory->changed_items |= (1 << i);
+
+						break;
+					}
+				}
+
+				if (cl.v.cnt_h_boost != 0.0f)
+				{
+					// no matching slot found, create one at first empty
+					if (i == MAX_INVENTORY_EX)
+					{
+						for (i = 0; i < MAX_INVENTORY_EX; i++)
+						{
+							if (cl.ex_inventory->item_id[i] == 0)
+							{
+								cl.ex_inventory->item_id[i] = 2;
+								cl.ex_inventory->item_cnt[i] = (int)cl.v.cnt_h_boost;
+
+								//cl.ex_inventory->changed_items |= (1 << i);
+								//cl.ex_inventory->new_items |= (1 << i);
+
+								break;
+							}
+						}
+					}
+				}
+			}
 			if (sc1 & SC1_CNT_SH_BOOST)
 				cl.v.cnt_sh_boost = MSG_ReadByte();
 			if (sc1 & SC1_CNT_MANA_BOOST)
@@ -1799,10 +1901,46 @@ void CL_ParseServerMessage (void)
 					cl.info_mask2 = MSG_ReadLong();
 			}
 
+			// extended inventory
+			if (sv_protocol == PROTOCOL_UH2_114)
+			{
+				test = MSG_ReadByte();
+				if (test & 1)
+					sc3 |= ((int)MSG_ReadByte());
+				if (test & 2)
+					sc3 |= ((int)MSG_ReadByte()) << 8;
+				if (test & 4)
+					sc3 |= ((int)MSG_ReadByte()) << 16;
+				if (test & 8)
+					sc3 |= ((int)MSG_ReadByte()) << 24;
+				//if (test & 16)
+				//	host_client->ex_inventory->next; //shan page?
+
+
+				if (sc3)
+				{
+					for (i = 0; i < 32; i++)
+					{
+						if (sc3 & (1 << i))
+						{
+							cl.ex_inventory->item_cnt[i] = MSG_ReadByte();
+							if (cl.ex_inventory->item_cnt[i] & 128)
+							{
+								cl.ex_inventory->item_id[i] = MSG_ReadByte();
+								cl.ex_inventory->item_cnt[i] &= 127;
+								//cl.ex_inventory->new_items |= (1 << i); //shan sbar notification?
+							}
+						}
+					}
+
+					//cl.ex_inventory->changed_items = sc3; //shan sbar notification?
+				}
+			}
+
 			if ((sc1 & SC1_STAT_BAR) || (sc2 & SC2_STAT_BAR))
 				Sbar_Changed();
 
-			if ((sc1 & SC1_INV) || (sc2 & SC2_INV))
+			if ((sc1 & SC1_INV) || (sc2 & SC2_INV) || (sc3))
 				SB_InvChanged();
 			break;
 

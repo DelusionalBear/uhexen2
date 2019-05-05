@@ -341,7 +341,7 @@ void V_ParseDamage (void)
 	if (count < 10)
 		count = 10;
 
-	cl.ex_inventory[0].faceanimtime = cl.time + 0.2;	// put sbar face into pain frame
+	cl.faceanimtime = cl.time + 0.2;	// put sbar face into pain frame
 
 	cl.cshifts[CSHIFT_DAMAGE].percent += 3 * count;
 	if (cl.cshifts[CSHIFT_DAMAGE].percent < 0)

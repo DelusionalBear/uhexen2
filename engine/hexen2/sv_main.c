@@ -427,6 +427,25 @@ void SV_StartSound (edict_t *entity, int channel, const char *sample, int volume
 }
 
 /*
+==================
+SV_UpdateExInventory
+==================
+*/
+void SV_UpdateExInventory(edict_t *entity, int inv_id, int inv_cnt)
+{
+	int			ent;
+
+	if (sv.datagram.cursize > (PROTOCOL_UH2_114 - 2))
+		return;
+
+	ent = NUM_FOR_EDICT(entity);
+
+	MSG_WriteShort(&sv.datagram, ent);
+	MSG_WriteByte(&sv.datagram, inv_id);
+	MSG_WriteByte(&sv.datagram, inv_cnt);
+}
+
+/*
 ==============================================================================
 
 CLIENT SPAWNING
@@ -487,7 +506,7 @@ static void SV_SendServerinfo (client_t *client)
 		for (i = 1, s = sv.model_precache + 1; i < MAX_MODELS && *s; s++)
 		{
 			#if !defined(SERVERONLY) && defined(GLQUAKE)
-			if (sv.models[i]->ex_flags != 0)
+			if ((sv.models[i] != NULL) && (sv.models[i]->ex_flags != 0))
 			{
 				MSG_WriteString(&client->message, *s);
 				MSG_WriteShort(&client->message, sv.models[i]->ex_flags);
@@ -498,6 +517,15 @@ static void SV_SendServerinfo (client_t *client)
 			}
 			#endif
 			i++;
+		}
+		MSG_WriteByte(&client->message, 0);
+
+		// send inventory extension info
+		for (i = 0; i < sv.num_ex_items; i++)
+		{
+			//*s = sv.ex_items[i].icon;
+			MSG_WriteByte(&client->message, sv.ex_items[i].id);
+			MSG_WriteString(&client->message, sv.ex_items[i].icon);
 		}
 		MSG_WriteByte(&client->message, 0);
 	}
@@ -1131,7 +1159,7 @@ SV_WriteClientdataToMessage
 */
 void SV_WriteClientdataToMessage (client_t *client, edict_t *ent, sizebuf_t *msg)
 {
-	int	bits,sc1,sc2;
+	int	bits,sc1,sc2,sc3,sc4;
 	byte	test;
 	int	i;
 	edict_t	*other;
@@ -1296,6 +1324,13 @@ void SV_WriteClientdataToMessage (client_t *client, edict_t *ent, sizebuf_t *msg
 	else
 	{
 		sc1 = sc2 = 0;
+		if (sv_protocol == PROTOCOL_UH2_114)
+		{
+			sc3 = host_client->ex_inventory.changed_items;
+			sc4 = host_client->ex_inventory.new_items;
+		}
+		else
+			sc3 = sc4 = 0;
 
 		if (ent->v.health != host_client->old_v.health)
 			sc1 |= SC1_HEALTH;
@@ -1417,7 +1452,7 @@ void SV_WriteClientdataToMessage (client_t *client, edict_t *ent, sizebuf_t *msg
 		}
 	}
 
-	if (!sc1 && !sc2)
+	if (!sc1 && !sc2 && !sc3 && !sc4)
 		goto end;
 
 	MSG_WriteByte (&host_client->message, svc_update_inv);
@@ -1479,9 +1514,78 @@ void SV_WriteClientdataToMessage (client_t *client, edict_t *ent, sizebuf_t *msg
 	if (sc1 & SC1_EXPERIENCE)
 		MSG_WriteLong (&host_client->message, ent->v.experience);
 	if (sc1 & SC1_CNT_TORCH)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_torch);
+	{
+		MSG_WriteByte(&host_client->message, ent->v.cnt_torch);
+		// try to find a matching slot
+		for (i = 0; i < 32; i++)
+		{
+			if (host_client->ex_inventory.item_id[i] == 1)
+			{
+				host_client->ex_inventory.item_cnt[i] = (int)ent->v.cnt_torch;
+				host_client->ex_inventory.changed_items |= (1 << i);
+
+				break;
+			}
+		}
+
+		if (ent->v.cnt_torch != 0.0f)
+		{
+			// no matching slot found, create one at first empty
+			if (i == 32)
+			{
+				for (i = 0; i < MAX_ITEMS_EX; i++)
+				{
+					if (host_client->ex_inventory.item_id[i] == 0)
+					{
+						host_client->ex_inventory.item_id[i] = 1;
+						host_client->ex_inventory.item_cnt[i] = (int)ent->v.cnt_torch;
+
+						host_client->ex_inventory.changed_items |= (1 << i);
+						host_client->ex_inventory.new_items |= (1 << i);
+
+						break;
+					}
+				}
+			}
+		}
+	}
 	if (sc1 & SC1_CNT_H_BOOST)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_h_boost);
+	{
+		MSG_WriteByte(&host_client->message, ent->v.cnt_h_boost);
+		// try to find a matching slot
+		for (i = 0; i < 32; i++)
+		{
+			if (host_client->ex_inventory.item_id[i] == 2)
+			{
+				host_client->ex_inventory.item_cnt[i] = (int)ent->v.cnt_h_boost;
+
+				host_client->ex_inventory.changed_items |= (1 << i);
+
+				break;
+			}
+		}
+
+		if (ent->v.cnt_h_boost != 0.0f)
+		{
+			// no matching slot found, create one at first empty
+			if (i == 32)
+			{
+				for (i = 0; i < MAX_ITEMS_EX; i++)
+				{
+					if (host_client->ex_inventory.item_id[i] == 0)
+					{
+						host_client->ex_inventory.item_id[i] = 2;
+						host_client->ex_inventory.item_cnt[i] = (int)ent->v.cnt_h_boost;
+
+						host_client->ex_inventory.changed_items |= (1 << i);
+						host_client->ex_inventory.new_items |= (1 << i);
+
+						break;
+					}
+				}
+			}
+		}
+	}
 	if (sc1 & SC1_CNT_SH_BOOST)
 		MSG_WriteByte (&host_client->message, ent->v.cnt_sh_boost);
 	if (sc1 & SC1_CNT_MANA_BOOST)
@@ -1583,6 +1687,56 @@ void SV_WriteClientdataToMessage (client_t *client, edict_t *ent, sizebuf_t *msg
 		}
 	}
 
+ex_inv:	
+// extended inventory
+	if (sv_protocol == PROTOCOL_UH2_114)
+	{
+		sc3 = host_client->ex_inventory.changed_items;
+		sc4 = host_client->ex_inventory.new_items;
+
+		test = 0;
+		if (sc3 & 0x000000ff)
+			test |= 1;
+		if (sc3 & 0x0000ff00)
+			test |= 2;
+		if (sc3 & 0x00ff0000)
+			test |= 4;
+		if (sc3 & 0xff000000)
+			test |= 8;
+		if (host_client->ex_inventory.next != NULL)
+			test |= 16;
+
+		MSG_WriteByte(&host_client->message, test);
+
+		if (test)
+		{
+			if (test & 1)
+				MSG_WriteByte(&host_client->message, sc3 & 0xff);
+			if (test & 2)
+				MSG_WriteByte(&host_client->message, (sc3 >> 8) & 0xff);
+			if (test & 4)
+				MSG_WriteByte(&host_client->message, (sc3 >> 16) & 0xff);
+			if (test & 8)
+				MSG_WriteByte(&host_client->message, (sc3 >> 24) & 0xff);
+
+			for (i = 0; i < 32; i++)
+			{
+				if (sc3 & (1 << i))
+				{
+					MSG_WriteByte(&host_client->message, (host_client->ex_inventory.item_cnt[i] + (((sc4 & (1 << i)) > 0)) * 128));
+					if (sc4 & (1 << i))
+					{
+						MSG_WriteByte(&host_client->message, (host_client->ex_inventory.item_id[i]));
+					}
+				}
+			}
+
+			host_client->ex_inventory.changed_items = 0;
+			host_client->ex_inventory.new_items = 0;
+		}
+	}
+
+	
 end:
 	memcpy (&client->old_v, &ent->v, sizeof(client->old_v));
 }
@@ -2103,9 +2257,22 @@ void SV_SpawnServer (const char *server, const char *startspot)
 		sv.models[i+1] = Mod_ForName (localmodels[i], false);
 	}
 
+	sv.num_ex_items = 0;
+	if (sv.ex_items == NULL)
+	{
+		sv.ex_items = (ex_item_t *)Hunk_AllocName(MAX_ITEMS_EX * sizeof(ex_item_t), "ex_items");
+		for (i = 0; i < 15; i++)
+		{
+			sv.num_ex_items += 1;
+			sv.ex_items[i].id = (int)(i + 1);
+			q_strlcpy(sv.ex_items[i].icon, va("gfx/arti%02d.lmp", i), MAX_QPATH);
+		}
+	}
+
 //
 // load the rest of the entities
 //
+
 	ent = EDICT_NUM(0);
 	memset (&ent->v, 0, progs->entityfields * 4);
 	ent->free = false;

@@ -42,10 +42,10 @@ typedef enum
 	ss_active
 } server_state_t;
 
-typedef struct
+typedef struct ex_item_s
 {
 	int			id;
-	char		*icon;
+	const char		icon[MAX_QPATH];
 } ex_item_t;
 
 typedef struct
@@ -90,7 +90,7 @@ typedef struct
 
 	sizebuf_t	signon;
 	byte		signon_buf[NET_MAXMESSAGE];
-	ex_item_t	*ex_items;
+	struct ex_item_s	*ex_items;
 	int			num_ex_items;
 } server_t;
 
@@ -98,17 +98,16 @@ typedef struct
 #define	NUM_PING_TIMES		16
 #define	NUM_SPAWN_PARMS		16
 
-typedef struct ex_inventory_s
+typedef struct ex_inventory_page_s
 {
-	int		inv_count, inv_startpos, inv_selected;
-	int		items;		// inventory bit flags
-	float	item_gettime[32];	// cl.time of aquiring item, for blinking
-	float	faceanimtime;		// use anim frame if cl.time < this
-	int		inv_order[32];
+	int		changed_items;		// inventory change bit flags
+	int		new_items;		// inventory change bit flags
 	int		item_id[32];
 	int		item_cnt[32];
-	struct ex_inventory_t *next;
-} ex_inventory_t;
+	int		inv_order[32];
+	float	item_gettime[32];	// cl.time of aquiring item, for blinking
+	struct ex_inventory_page_t *next;
+} ex_inventory_page_t;
 
 typedef struct client_s
 {
@@ -153,7 +152,7 @@ typedef struct client_s
 
 // mission pack, objectives strings
 	unsigned int	info_mask, info_mask2;
-	ex_inventory_t ex_inventory[1];
+	ex_inventory_page_t ex_inventory;
 } client_t;
 
 

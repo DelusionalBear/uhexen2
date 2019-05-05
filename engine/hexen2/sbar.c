@@ -44,6 +44,7 @@
 
 /* artifact counts are relative to the cnt_torch in entvars_t struct: */
 #define Inv_GetCount(artifact_num)	(int)(&cl.v.cnt_torch)[(artifact_num)]
+#define Inv_GetCountEx(artifact_num)	(int)(cl.ex_inventory[0].item_cnt)[(artifact_num)]
 
 // TYPES -------------------------------------------------------------------
 
@@ -351,9 +352,10 @@ void Sbar_Draw(void)
 	}
 
 	// Current inventory item
-	if (cl.ex_inventory[0].inv_selected >= 0)
+	if (cl.inv_selected >= 0)
 	{
-		DrawBarArtifactIcon(144, 3, cl.ex_inventory[0].inv_order[cl.ex_inventory[0].inv_selected]);
+		//DrawBarArtifactIcon(144, 3, cl.ex_inventory->item_id[cl.ex_inventory->inv_order[cl.inv_selected]]);
+		DrawBarArtifactIcon(144, 3, cl.inv_selected);
 	//	Sbar_DrawTransPic(144, 3, Draw_CachePic(va("gfx/arti%02d.lmp", cl.inv_order[cl.inv_selected])));
 	}
 }
@@ -438,9 +440,10 @@ static void DrawFullScreenInfo(void)
 	Sbar_DrawNum(38, y+18, cl.v.health, 3);
 
 	// Current inventory item
-	if (cl.ex_inventory[0].inv_selected >= 0)
+	if (cl.inv_selected >= 0)
 	{
-		DrawBarArtifactIcon(288, y+7, cl.ex_inventory[0].inv_order[cl.ex_inventory[0].inv_selected]);
+		//DrawBarArtifactIcon(288, y+7, cl.ex_inventory->item_id[cl.ex_inventory->inv_order[cl.inv_selected]]);
+		DrawBarArtifactIcon(288, y + 7, cl.inv_selected);
 	}
 }
 
@@ -1160,8 +1163,8 @@ void Inv_Update(qboolean force)
 	if (inv_flg || force)
 	{
 		// Just to be safe
-		if (cl.ex_inventory[0].inv_selected >= 0 && cl.ex_inventory[0].inv_count > 0)
-			cl.v.inventory = cl.ex_inventory[0].inv_order[cl.ex_inventory[0].inv_selected] + 1;
+		if (cl.inv_selected >= 0 && cl.inv_count > 0)
+			cl.v.inventory = cl.ex_inventory->item_id[cl.ex_inventory->inv_order[cl.inv_selected]];
 		else
 			cl.v.inventory = 0;
 
@@ -1186,15 +1189,40 @@ void Inv_Update(qboolean force)
 
 static void DrawBarArtifactIcon(int x, int y, int artifact)
 {
-	int	count;
+	int	count, i;
 
-	if (artifact < 0 || artifact >= MAX_INVENTORY)
+	if (artifact < 0 || artifact >= MAX_INVENTORY_EX)
 		return;
-	Sbar_DrawTransPic(x, y, Draw_CachePic(va("gfx/arti%02d.lmp", artifact)));
-	if ((count = Inv_GetCount(artifact)) > 0)
+
+	for (i = 0; i < MAX_INVENTORY_EX; i++)
 	{
-		DrawBarArtifactNumber(x+20, y+21, count);
+		//if (cl.ex_items[i].id == artifact)
+		if (cl.ex_items[i].id == cl.ex_inventory->item_id[cl.ex_inventory->inv_order[artifact]])
+		{
+			Sbar_DrawTransPic(x, y, Draw_CachePic(cl.ex_items[i].icon));
+			break;
+		}
+		
 	}
+
+	////Sbar_DrawTransPic(x, y, Draw_CachePic(va("gfx/arti%02d.lmp", artifact)));
+	DrawBarArtifactNumber(x + 20, y + 21, cl.ex_inventory->item_cnt[cl.ex_inventory->inv_order[artifact]]);
+	/*
+	if ((cl.ex_inventory->item_id[cl.ex_inventory->inv_order[artifact]] > 0) && (cl.ex_inventory->item_id[cl.ex_inventory->inv_order[artifact]] < 15))
+	{
+		if ((count = Inv_GetCount(artifact)) > 0)
+		{
+			DrawBarArtifactNumber(x + 20, y + 21, count);
+		}
+	}
+	else
+	{
+		if ((count = Inv_GetCountEx(artifact)) > 0) //shan
+		{
+			DrawBarArtifactNumber(x + 20, y + 21, count);
+		}
+	}
+	*/
 }
 
 //==========================================================================
@@ -1215,7 +1243,7 @@ static void DrawArtifactInventory(void)
 	}
 	if (!inv_flg)
 		return;
-	if (!cl.ex_inventory[0].inv_count)
+	if (!cl.inv_count)
 	{
 		Inv_Update(false);
 		return;
@@ -1229,14 +1257,14 @@ static void DrawArtifactInventory(void)
 	// InvLeft_f and InvRight_f scrolls the inventory as needed - S.A.
 	for (i = 0, x = 64; i < INV_MAX_ICON; i++, x += 33)
 	{
-		if (i >= cl.ex_inventory[0].inv_count)
+		if (i >= cl.inv_count)
 			break;
 
-		if ((cl.ex_inventory[0].inv_startpos + i) % cl.ex_inventory[0].inv_count == cl.ex_inventory[0].inv_selected)
+		if ((cl.inv_startpos + i) % cl.inv_count == cl.inv_selected)
 		{ // Highlight icon
 			Sbar_DrawTransPic(x+9, y-12, Draw_CachePic("gfx/artisel.lmp"));
 		}
-		DrawBarArtifactIcon(x, y, cl.ex_inventory[0].inv_order[(cl.ex_inventory[0].inv_startpos + i) % cl.ex_inventory[0].inv_count]);
+		DrawBarArtifactIcon(x, y, (cl.inv_startpos + i) % cl.inv_count);
 	}
 
 	/*
@@ -1315,20 +1343,20 @@ static void ShowInfoUp_f(void)
 
 static void InvLeft_f(void)
 {
-	if (!cl.ex_inventory[0].inv_count || cl.intermission)
+	if (!cl.inv_count || cl.intermission)
 		return;
 
 	if (inv_flg)
 	{
 		// scroll inventory icons if we're at the left-most already
-		if (cl.ex_inventory[0].inv_selected == cl.ex_inventory[0].inv_startpos)
+		if (cl.inv_selected == cl.inv_startpos)
 		{
-			cl.ex_inventory[0].inv_startpos = (cl.ex_inventory[0].inv_startpos - 1 + cl.ex_inventory[0].inv_count) % cl.ex_inventory[0].inv_count;
-			cl.ex_inventory[0].inv_selected = cl.ex_inventory[0].inv_startpos;
+			cl.inv_startpos = (cl.inv_startpos - 1 + cl.inv_count) % cl.inv_count;
+			cl.inv_selected = cl.inv_startpos;
 		}
 		else
 		{
-			cl.ex_inventory[0].inv_selected = (cl.ex_inventory[0].inv_selected - 1 + cl.ex_inventory[0].inv_count) % cl.ex_inventory[0].inv_count;
+			cl.inv_selected = (cl.inv_selected - 1 + cl.inv_count) % cl.inv_count;
 		}
 
 		if (scr_viewsize.integer < 100)
@@ -1352,21 +1380,21 @@ static void InvRight_f(void)
 {
 	int		right_icon;
 
-	if (!cl.ex_inventory[0].inv_count || cl.intermission)
+	if (!cl.inv_count || cl.intermission)
 		return;
 
 	if (inv_flg)
 	{
 
-		if (cl.ex_inventory[0].inv_count >= INV_MAX_ICON)
-			right_icon = (cl.ex_inventory[0].inv_startpos + INV_MAX_ICON - 1) % cl.ex_inventory[0].inv_count;
+		if (cl.inv_count >= INV_MAX_ICON)
+			right_icon = (cl.inv_startpos + INV_MAX_ICON - 1) % cl.inv_count;
 		else
-			right_icon = (cl.ex_inventory[0].inv_startpos + cl.ex_inventory[0].inv_count - 1) % cl.ex_inventory[0].inv_count;
+			right_icon = (cl.inv_startpos + cl.inv_count - 1) % cl.inv_count;
 		// scroll inventory icons if we're at the right most already
-		if (cl.ex_inventory[0].inv_selected == right_icon)
-			cl.ex_inventory[0].inv_startpos = (cl.ex_inventory[0].inv_startpos + 1) % cl.ex_inventory[0].inv_count;
+		if (cl.inv_selected == right_icon)
+			cl.inv_startpos = (cl.inv_startpos + 1) % cl.inv_count;
 
-		cl.ex_inventory[0].inv_selected = (cl.ex_inventory[0].inv_selected + 1) % cl.ex_inventory[0].inv_count;
+		cl.inv_selected = (cl.inv_selected + 1) % cl.inv_count;
 
 		if (scr_viewsize.integer < 100)
 			scr_fullupdate = 0;
@@ -1387,7 +1415,7 @@ static void InvRight_f(void)
 
 static void InvUse_f(void)
 {
-	if (!cl.ex_inventory[0].inv_count || cl.intermission)
+	if (!cl.inv_count || cl.intermission)
 		return;
 	S_LocalSound("misc/invuse.wav");
 	//Inv_Update(false);
@@ -1432,49 +1460,98 @@ static void ToggleDM_f(void)
 
 void SB_InvChanged(void)
 {
-	int		counter, position;
-	qboolean	examined[MAX_INVENTORY];
+	int		counter, position, j;
+	qboolean	examined[MAX_INVENTORY_EX];
 	qboolean	ForceUpdate = false;
 
 	memset (examined, 0, sizeof(examined));
 
-	if (cl.ex_inventory[0].inv_selected >= 0 && Inv_GetCount(cl.ex_inventory[0].inv_order[cl.ex_inventory[0].inv_selected]) == 0)
+	//if (cl.inv_selected >= 0 && Inv_GetCount(cl.ex_inventory->inv_order[cl.inv_selected]) == 0)
+	if (cl.inv_selected >= 0 && (cl.ex_inventory->item_cnt[cl.ex_inventory->inv_order[cl.inv_selected]] == 0))
 		ForceUpdate = true;
 
 	// removed items we no longer have from the order
-	for (counter = position = 0; counter < cl.ex_inventory[0].inv_count; counter++)
+	for (counter = position = 0; counter < cl.inv_count; counter++)
 	{
-		if (Inv_GetCount(cl.ex_inventory[0].inv_order[counter]) > 0)
+		if (cl.ex_inventory->item_cnt[cl.ex_inventory->inv_order[counter]] > 0)
 		{
-			cl.ex_inventory[0].inv_order[position] = cl.ex_inventory[0].inv_order[counter];
-			examined[cl.ex_inventory[0].inv_order[position]] = true;
+			cl.ex_inventory->inv_order[position] = cl.ex_inventory->inv_order[counter];
+			examined[cl.ex_inventory->inv_order[position]] = true;
 
 			position++;
 		}
-	}
 
-	// add in the new items
-	for (counter = 0; counter < MAX_INVENTORY; counter++)
-	{
-		if (!examined[counter])
+		/*
+		if ((cl.ex_inventory->item_id[cl.ex_inventory->inv_order[counter]] > 0) && (cl.ex_inventory->item_id[cl.ex_inventory->inv_order[counter]] < 15))
 		{
-			if (Inv_GetCount(counter) > 0)
+			j = Inv_GetCount(cl.ex_inventory->inv_order[counter]);
+			if (Inv_GetCount(cl.ex_inventory->inv_order[counter]) > 0)
 			{
-				cl.ex_inventory[0].inv_order[position] = counter;
+				cl.ex_inventory->inv_order[position] = cl.ex_inventory->inv_order[counter];
+				examined[cl.ex_inventory->inv_order[position]] = true;
+
 				position++;
 			}
 		}
+		else
+		{
+			j = Inv_GetCountEx(cl.ex_inventory->inv_order[counter]);
+			if (Inv_GetCountEx(cl.ex_inventory->inv_order[counter]) > 0)
+			{
+				cl.ex_inventory->inv_order[position] = cl.ex_inventory->inv_order[counter];
+				examined[cl.ex_inventory->inv_order[position]] = true;
+
+				position++;
+			}
+		}
+		*/
 	}
 
-	cl.ex_inventory[0].inv_count = position;
-	if (cl.ex_inventory[0].inv_selected >= cl.ex_inventory[0].inv_count)
+	// add in the new items
+	for (counter = 0; counter < MAX_INVENTORY_EX; counter++)
 	{
-		cl.ex_inventory[0].inv_selected = cl.ex_inventory[0].inv_count-1;
+		if (!examined[counter])
+		{
+			if (cl.ex_inventory->item_cnt[counter] > 0)
+			{
+				cl.ex_inventory->inv_order[position] = counter;
+				//cl.ex_inventory->new_items ^= (1 << counter);
+				position++;
+			}
+
+			/*
+			if ((cl.ex_inventory->item_id[cl.ex_inventory->inv_order[counter]] > 0) && (cl.ex_inventory->item_id[cl.ex_inventory->inv_order[counter]] < 15))
+			{
+				j = Inv_GetCount(counter);
+				//if (Inv_GetCount(counter) > 0)
+				if ((cl.ex_inventory->item_id[cl.ex_inventory->inv_order[counter]] > 0) && (Inv_GetCount(counter) > 0))
+				{
+					cl.ex_inventory->inv_order[position] = counter;
+					position++;
+				}
+			}
+			else
+			{
+				j = Inv_GetCountEx(counter);
+				if ((cl.ex_inventory->item_id[cl.ex_inventory->inv_order[counter]] > 0) && (Inv_GetCountEx(counter) > 0))
+				{
+					cl.ex_inventory->inv_order[position] = counter;
+					position++;
+				}
+			}
+			*/
+		}
+	}
+
+	cl.inv_count = position;
+	if (cl.inv_selected >= cl.inv_count)
+	{
+		cl.inv_selected = cl.inv_count-1;
 		ForceUpdate = true;
 	}
-	if (cl.ex_inventory[0].inv_count && cl.ex_inventory[0].inv_selected < 0)
+	if (cl.inv_count && cl.inv_selected < 0)
 	{
-		cl.ex_inventory[0].inv_selected = 0;
+		cl.inv_selected = 0;
 		ForceUpdate = true;
 	}
 	if (ForceUpdate)
@@ -1482,17 +1559,17 @@ void SB_InvChanged(void)
 		Inv_Update(true);
 	}
 	/* make sure that startpos isn't borked */
-	if (cl.ex_inventory[0].inv_count <= 1)
-		cl.ex_inventory[0].inv_startpos = 0;
-	else if (cl.ex_inventory[0].inv_startpos >= cl.ex_inventory[0].inv_count)
-		cl.ex_inventory[0].inv_startpos = cl.ex_inventory[0].inv_selected;
+	if (cl.inv_count <= 1)
+		cl.inv_startpos = 0;
+	else if (cl.inv_startpos >= cl.inv_count)
+		cl.inv_startpos = cl.inv_selected;
 	else
 	{
-		position = cl.ex_inventory[0].inv_selected - cl.ex_inventory[0].inv_startpos;
+		position = cl.inv_selected - cl.inv_startpos;
 		if (position < 0)
-			position += cl.ex_inventory[0].inv_count;
+			position += cl.inv_count;
 		if (position >= INV_MAX_ICON/* || position < 0*/)
-			cl.ex_inventory[0].inv_startpos = cl.ex_inventory[0].inv_selected;
+			cl.inv_startpos = cl.inv_selected;
 	}
 }
 
@@ -1504,8 +1581,8 @@ void SB_InvChanged(void)
 
 void SB_InvReset(void)
 {
-	cl.ex_inventory[0].inv_count = cl.ex_inventory[0].inv_startpos = 0;
-	cl.ex_inventory[0].inv_selected = -1;
+	cl.inv_count = cl.inv_startpos = 0;
+	cl.inv_selected = -1;
 	inv_flg = false;
 	if (scr_viewsize.integer < 100)
 		scr_fullupdate = 0;

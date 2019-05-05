@@ -454,7 +454,6 @@ typedef struct
 	int	movechain;
 	func_t	chainmoved;
 	float	string_index;
-	float	ex_inv_changed;
 } entvars_t;
 
 /* crc for Hexen II v1.03 progs.dat headers	*/
