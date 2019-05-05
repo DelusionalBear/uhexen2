@@ -523,7 +523,6 @@ static void SV_SendServerinfo (client_t *client)
 		// send inventory extension info
 		for (i = 0; i < sv.num_ex_items; i++)
 		{
-			//*s = sv.ex_items[i].icon;
 			MSG_WriteByte(&client->message, sv.ex_items[i].id);
 			MSG_WriteString(&client->message, sv.ex_items[i].icon);
 		}

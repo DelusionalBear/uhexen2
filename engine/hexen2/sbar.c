@@ -354,9 +354,7 @@ void Sbar_Draw(void)
 	// Current inventory item
 	if (cl.inv_selected >= 0)
 	{
-		//DrawBarArtifactIcon(144, 3, cl.ex_inventory->item_id[cl.ex_inventory->inv_order[cl.inv_selected]]);
 		DrawBarArtifactIcon(144, 3, cl.inv_selected);
-	//	Sbar_DrawTransPic(144, 3, Draw_CachePic(va("gfx/arti%02d.lmp", cl.inv_order[cl.inv_selected])));
 	}
 }
 
@@ -442,7 +440,6 @@ static void DrawFullScreenInfo(void)
 	// Current inventory item
 	if (cl.inv_selected >= 0)
 	{
-		//DrawBarArtifactIcon(288, y+7, cl.ex_inventory->item_id[cl.ex_inventory->inv_order[cl.inv_selected]]);
 		DrawBarArtifactIcon(288, y + 7, cl.inv_selected);
 	}
 }
@@ -1196,7 +1193,6 @@ static void DrawBarArtifactIcon(int x, int y, int artifact)
 
 	for (i = 0; i < MAX_INVENTORY_EX; i++)
 	{
-		//if (cl.ex_items[i].id == artifact)
 		if (cl.ex_items[i].id == cl.ex_inventory->item_id[cl.ex_inventory->inv_order[artifact]])
 		{
 			Sbar_DrawTransPic(x, y, Draw_CachePic(cl.ex_items[i].icon));
@@ -1205,24 +1201,7 @@ static void DrawBarArtifactIcon(int x, int y, int artifact)
 		
 	}
 
-	////Sbar_DrawTransPic(x, y, Draw_CachePic(va("gfx/arti%02d.lmp", artifact)));
 	DrawBarArtifactNumber(x + 20, y + 21, cl.ex_inventory->item_cnt[cl.ex_inventory->inv_order[artifact]]);
-	/*
-	if ((cl.ex_inventory->item_id[cl.ex_inventory->inv_order[artifact]] > 0) && (cl.ex_inventory->item_id[cl.ex_inventory->inv_order[artifact]] < 15))
-	{
-		if ((count = Inv_GetCount(artifact)) > 0)
-		{
-			DrawBarArtifactNumber(x + 20, y + 21, count);
-		}
-	}
-	else
-	{
-		if ((count = Inv_GetCountEx(artifact)) > 0) //shan
-		{
-			DrawBarArtifactNumber(x + 20, y + 21, count);
-		}
-	}
-	*/
 }
 
 //==========================================================================
@@ -1466,7 +1445,6 @@ void SB_InvChanged(void)
 
 	memset (examined, 0, sizeof(examined));
 
-	//if (cl.inv_selected >= 0 && Inv_GetCount(cl.ex_inventory->inv_order[cl.inv_selected]) == 0)
 	if (cl.inv_selected >= 0 && (cl.ex_inventory->item_cnt[cl.ex_inventory->inv_order[cl.inv_selected]] == 0))
 		ForceUpdate = true;
 
@@ -1480,31 +1458,6 @@ void SB_InvChanged(void)
 
 			position++;
 		}
-
-		/*
-		if ((cl.ex_inventory->item_id[cl.ex_inventory->inv_order[counter]] > 0) && (cl.ex_inventory->item_id[cl.ex_inventory->inv_order[counter]] < 15))
-		{
-			j = Inv_GetCount(cl.ex_inventory->inv_order[counter]);
-			if (Inv_GetCount(cl.ex_inventory->inv_order[counter]) > 0)
-			{
-				cl.ex_inventory->inv_order[position] = cl.ex_inventory->inv_order[counter];
-				examined[cl.ex_inventory->inv_order[position]] = true;
-
-				position++;
-			}
-		}
-		else
-		{
-			j = Inv_GetCountEx(cl.ex_inventory->inv_order[counter]);
-			if (Inv_GetCountEx(cl.ex_inventory->inv_order[counter]) > 0)
-			{
-				cl.ex_inventory->inv_order[position] = cl.ex_inventory->inv_order[counter];
-				examined[cl.ex_inventory->inv_order[position]] = true;
-
-				position++;
-			}
-		}
-		*/
 	}
 
 	// add in the new items
@@ -1515,31 +1468,8 @@ void SB_InvChanged(void)
 			if (cl.ex_inventory->item_cnt[counter] > 0)
 			{
 				cl.ex_inventory->inv_order[position] = counter;
-				//cl.ex_inventory->new_items ^= (1 << counter);
 				position++;
 			}
-
-			/*
-			if ((cl.ex_inventory->item_id[cl.ex_inventory->inv_order[counter]] > 0) && (cl.ex_inventory->item_id[cl.ex_inventory->inv_order[counter]] < 15))
-			{
-				j = Inv_GetCount(counter);
-				//if (Inv_GetCount(counter) > 0)
-				if ((cl.ex_inventory->item_id[cl.ex_inventory->inv_order[counter]] > 0) && (Inv_GetCount(counter) > 0))
-				{
-					cl.ex_inventory->inv_order[position] = counter;
-					position++;
-				}
-			}
-			else
-			{
-				j = Inv_GetCountEx(counter);
-				if ((cl.ex_inventory->item_id[cl.ex_inventory->inv_order[counter]] > 0) && (Inv_GetCountEx(counter) > 0))
-				{
-					cl.ex_inventory->inv_order[position] = counter;
-					position++;
-				}
-			}
-			*/
 		}
 	}
 
