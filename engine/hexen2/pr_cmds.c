@@ -3358,14 +3358,14 @@ static void PF_update_ex_item(void)
 	// try to find a matching slot
 	for (i = 0; i < 32; i++)
 	{
-		if (client->ex_inventory.item_id[i] == item_id)
+		if (client->ex_inventory->item_id[i] == item_id)
 		{
-			client->ex_inventory.item_cnt[i] += item_count;
-			result = client->ex_inventory.item_cnt[i];
+			client->ex_inventory->item_cnt[i] += item_count;
+			result = client->ex_inventory->item_cnt[i];
 
 			if (item_count)
 			{
-				client->ex_inventory.changed_items |= (1 << i);
+				client->ex_inventory->changed_items |= (1 << i);
 			}
 
 			break;
@@ -3377,16 +3377,16 @@ static void PF_update_ex_item(void)
 	{
 		for (i = 0; i < 32; i++)
 		{
-			if (client->ex_inventory.item_id[i] == 0)
+			if (client->ex_inventory->item_id[i] == 0)
 			{
-				client->ex_inventory.item_id[i] = item_id;
-				client->ex_inventory.item_cnt[i] += item_count;
-				result = client->ex_inventory.item_cnt[i];
+				client->ex_inventory->item_id[i] = item_id;
+				client->ex_inventory->item_cnt[i] += item_count;
+				result = client->ex_inventory->item_cnt[i];
 
 				if (item_count)
 				{
-					client->ex_inventory.changed_items |= (1 << i);
-					client->ex_inventory.new_items |= (1 << i);
+					client->ex_inventory->changed_items |= (1 << i);
+					client->ex_inventory->new_items |= (1 << i);
 				}
 				break;
 			}

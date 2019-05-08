@@ -802,6 +802,7 @@ int SaveGamestate (qboolean ClientsOnly)
 			{
 				fprintf (f, "%i\n", i);
 				ED_Write (f, ent);
+				INV_Write(f, host_client->ex_inventory);
 				fflush (f);
 			}
 			host_client++;

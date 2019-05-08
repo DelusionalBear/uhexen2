@@ -901,14 +901,14 @@ int SaveGamestate (qboolean ClientsOnly)
 			else
 				fprintf (f, "m\n");
 		}
+		INV_SavePages(f);
 		SV_SaveEffects (f);
 		fprintf (f, "-1\n");
 		ED_WriteGlobals (f);
 	}
 
 	host_client = svs.clients;
-
-// save the client states
+	// save the client states
 	for (i = start; i < end; i++)
 	{
 		ent = EDICT_NUM(i);

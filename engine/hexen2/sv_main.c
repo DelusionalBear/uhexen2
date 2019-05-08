@@ -523,8 +523,12 @@ static void SV_SendServerinfo (client_t *client)
 		// send inventory extension info
 		for (i = 0; i < sv.num_ex_items; i++)
 		{
-			MSG_WriteByte(&client->message, sv.ex_items[i].id);
-			MSG_WriteString(&client->message, sv.ex_items[i].icon);
+			//only send new/changed artifacts
+			if ((!strcmp(va("gfx/arti%02d.lmp", sv.ex_items[i].id), sv.ex_items[i].icon)) || (sv.ex_items[i].id > 15))
+			{
+				MSG_WriteByte(&client->message, sv.ex_items[i].id);
+				MSG_WriteString(&client->message, sv.ex_items[i].icon);
+			}
 		}
 		MSG_WriteByte(&client->message, 0);
 	}
@@ -594,6 +598,7 @@ static void SV_ConnectClient (int clientnum)
 	client->active = true;
 	client->spawned = false;
 	client->edict = ent;
+	client->ex_inventory = sv.ex_inventory_pages[0];
 
 	SZ_Init (&client->message, client->msgbuf, sizeof(client->msgbuf));
 	client->message.allowoverflow = true;	// we can catch it
@@ -1325,8 +1330,8 @@ void SV_WriteClientdataToMessage (client_t *client, edict_t *ent, sizebuf_t *msg
 		sc1 = sc2 = 0;
 		if (sv_protocol == PROTOCOL_UH2_114)
 		{
-			sc3 = host_client->ex_inventory.changed_items;
-			sc4 = host_client->ex_inventory.new_items;
+			sc3 = host_client->ex_inventory->changed_items;
+			sc4 = host_client->ex_inventory->new_items;
 		}
 		else
 			sc3 = sc4 = 0;
@@ -1518,10 +1523,10 @@ void SV_WriteClientdataToMessage (client_t *client, edict_t *ent, sizebuf_t *msg
 		// try to find a matching slot
 		for (i = 0; i < 32; i++)
 		{
-			if (host_client->ex_inventory.item_id[i] == 1)
+			if (host_client->ex_inventory->item_id[i] == 1)
 			{
-				host_client->ex_inventory.item_cnt[i] = (int)ent->v.cnt_torch;
-				host_client->ex_inventory.changed_items |= (1 << i);
+				host_client->ex_inventory->item_cnt[i] = (int)ent->v.cnt_torch;
+				host_client->ex_inventory->changed_items |= (1 << i);
 
 				break;
 			}
@@ -1534,13 +1539,13 @@ void SV_WriteClientdataToMessage (client_t *client, edict_t *ent, sizebuf_t *msg
 			{
 				for (i = 0; i < MAX_ITEMS_EX; i++)
 				{
-					if (host_client->ex_inventory.item_id[i] == 0)
+					if (host_client->ex_inventory->item_id[i] == 0)
 					{
-						host_client->ex_inventory.item_id[i] = 1;
-						host_client->ex_inventory.item_cnt[i] = (int)ent->v.cnt_torch;
+						host_client->ex_inventory->item_id[i] = 1;
+						host_client->ex_inventory->item_cnt[i] = (int)ent->v.cnt_torch;
 
-						host_client->ex_inventory.changed_items |= (1 << i);
-						host_client->ex_inventory.new_items |= (1 << i);
+						host_client->ex_inventory->changed_items |= (1 << i);
+						host_client->ex_inventory->new_items |= (1 << i);
 
 						break;
 					}
@@ -1554,11 +1559,11 @@ void SV_WriteClientdataToMessage (client_t *client, edict_t *ent, sizebuf_t *msg
 		// try to find a matching slot
 		for (i = 0; i < 32; i++)
 		{
-			if (host_client->ex_inventory.item_id[i] == 2)
+			if (host_client->ex_inventory->item_id[i] == 2)
 			{
-				host_client->ex_inventory.item_cnt[i] = (int)ent->v.cnt_h_boost;
+				host_client->ex_inventory->item_cnt[i] = (int)ent->v.cnt_h_boost;
 
-				host_client->ex_inventory.changed_items |= (1 << i);
+				host_client->ex_inventory->changed_items |= (1 << i);
 
 				break;
 			}
@@ -1571,13 +1576,13 @@ void SV_WriteClientdataToMessage (client_t *client, edict_t *ent, sizebuf_t *msg
 			{
 				for (i = 0; i < MAX_ITEMS_EX; i++)
 				{
-					if (host_client->ex_inventory.item_id[i] == 0)
+					if (host_client->ex_inventory->item_id[i] == 0)
 					{
-						host_client->ex_inventory.item_id[i] = 2;
-						host_client->ex_inventory.item_cnt[i] = (int)ent->v.cnt_h_boost;
+						host_client->ex_inventory->item_id[i] = 2;
+						host_client->ex_inventory->item_cnt[i] = (int)ent->v.cnt_h_boost;
 
-						host_client->ex_inventory.changed_items |= (1 << i);
-						host_client->ex_inventory.new_items |= (1 << i);
+						host_client->ex_inventory->changed_items |= (1 << i);
+						host_client->ex_inventory->new_items |= (1 << i);
 
 						break;
 					}
@@ -1690,8 +1695,8 @@ ex_inv:
 // extended inventory
 	if (sv_protocol == PROTOCOL_UH2_114)
 	{
-		sc3 = host_client->ex_inventory.changed_items;
-		sc4 = host_client->ex_inventory.new_items;
+		sc3 = host_client->ex_inventory->changed_items;
+		sc4 = host_client->ex_inventory->new_items;
 
 		test = 0;
 		if (sc3 & 0x000000ff)
@@ -1702,7 +1707,7 @@ ex_inv:
 			test |= 4;
 		if (sc3 & 0xff000000)
 			test |= 8;
-		if (host_client->ex_inventory.next != NULL)
+		if (host_client->ex_inventory->next != NULL)
 			test |= 16;
 
 		MSG_WriteByte(&host_client->message, test);
@@ -1722,16 +1727,16 @@ ex_inv:
 			{
 				if (sc3 & (1 << i))
 				{
-					MSG_WriteByte(&host_client->message, (host_client->ex_inventory.item_cnt[i] + (((sc4 & (1 << i)) > 0)) * 128));
+					MSG_WriteByte(&host_client->message, (host_client->ex_inventory->item_cnt[i] + (((sc4 & (1 << i)) > 0)) * 128));
 					if (sc4 & (1 << i))
 					{
-						MSG_WriteByte(&host_client->message, (host_client->ex_inventory.item_id[i]));
+						MSG_WriteByte(&host_client->message, (host_client->ex_inventory->item_id[i]));
 					}
 				}
 			}
 
-			host_client->ex_inventory.changed_items = 0;
-			host_client->ex_inventory.new_items = 0;
+			host_client->ex_inventory->changed_items = 0;
+			host_client->ex_inventory->new_items = 0;
 		}
 	}
 
@@ -2109,6 +2114,98 @@ void SV_SaveSpawnparms (void)
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+//shan save inventory
+// All changes need to be in SV_SaveInventory(), SV_LoadInventory(), CL_ParseInventory()
+void SV_SaveInventory(FILE *FH)
+{
+}
+
+/*
+=============
+INV_Write
+
+For savegames
+=============
+*/
+void INV_Write(FILE *f, int clientId, ex_inventory_page_t *page)
+{
+	int i;
+
+	//fprintf(f, "Pages: %i\n", 1);
+	fprintf(f, "Page: %i %i", page->id, clientId); //page_id, client_id
+	for (i = 0; i < MAX_INVENTORY_EX; i++)
+	{
+		if ((page->item_id[i] != 0) && (page->item_cnt[i] > 0))
+		{
+			fprintf(f, " %i %i", page->item_id[i], page->item_cnt[i]); //item_id, item_cnt
+		}
+	}
+
+	if (page->next != NULL)
+		fprintf(f, " %i\n", page->next->id);
+	else
+		fprintf(f, " -1\n"); //item_id, item_cnt
+
+
+	//fprintf(f, "\"%s\" ", name);
+	//fprintf(f, "Server Time: %f\n", sv.time);
+	//fprintf(f, "\"%s\"\n", PR_UglyValueString(d->type, (eval_t *)v));
+
+}
+
+
+/*
+// All changes need to be in SV_SaveInventory(), SV_LoadInventory(), CL_ParseInventory()
+void SV_LoadInventory(FILE *FH)
+{
+}
+*/
+
+
+
+void INV_SavePages(FILE *FH)
+{
+	int i;
+	client_t	*host_client;
+
+	fprintf(FH, "Pages: %i\n", svs.maxclients);
+	host_client = svs.clients;
+	for (i = 0; i < svs.maxclients; i++, host_client++)
+	{
+		INV_Write(FH, i+1, &host_client->ex_inventory);
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /*
 ================
 SV_SpawnServer
@@ -2266,6 +2363,11 @@ void SV_SpawnServer (const char *server, const char *startspot)
 			sv.ex_items[i].id = (int)(i + 1);
 			q_strlcpy(sv.ex_items[i].icon, va("gfx/arti%02d.lmp", i), MAX_QPATH);
 		}
+	}
+
+	if (sv.ex_inventory_pages == NULL)
+	{
+		sv.ex_inventory_pages = (ex_inventory_page_t *)Hunk_AllocName(svs.maxclients * sizeof(ex_inventory_page_t), "ex_pages");
 	}
 
 //

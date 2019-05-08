@@ -72,7 +72,6 @@ typedef struct
 	const char	*sound_precache[MAX_SOUNDS];	// NULL terminated
 	const char	*lightstyles[MAX_LIGHTSTYLES];
 	struct EffectT	Effects[MAX_EFFECTS];
-	//shan inventory?
 
 	client_state2_t	*states;
 	int		num_edicts;
@@ -90,7 +89,8 @@ typedef struct
 
 	sizebuf_t	signon;
 	byte		signon_buf[NET_MAXMESSAGE];
-	struct ex_item_s	*ex_items;
+	ex_item_t	*ex_items;
+	ex_inventory_page_t	*ex_inventory_pages;
 	int			num_ex_items;
 } server_t;
 
@@ -100,13 +100,15 @@ typedef struct
 
 typedef struct ex_inventory_page_s
 {
+	int		id;
 	int		changed_items;		// inventory change bit flags
 	int		new_items;		// inventory change bit flags
 	int		item_id[32];
 	int		item_cnt[32];
 	int		inv_order[32];
 	float	item_gettime[32];	// cl.time of aquiring item, for blinking
-	struct ex_inventory_page_t *next;
+	struct ex_inventory_page_s *next;
+	//struct ex_inventory_page_s	*next2;
 } ex_inventory_page_t;
 
 typedef struct client_s
@@ -152,7 +154,7 @@ typedef struct client_s
 
 // mission pack, objectives strings
 	unsigned int	info_mask, info_mask2;
-	ex_inventory_page_t ex_inventory;
+	ex_inventory_page_t *ex_inventory;
 } client_t;
 
 

@@ -125,7 +125,7 @@
 
 #define	MAX_INVENTORY		15	/* Max inventory array size */
 #define	MAX_INVENTORY_EX	32	/* Max extended inventory array size */
-#define MAX_ITEMS_EX		32  // 255 // shan max id?
+#define MAX_ITEMS_EX		32  // 255
 /* the number of cnt_<artifact_name> members in the entvars_t struct:
    from cnt_torch to cnt_invincibility: 15 total (see in progdefs.h). */
 

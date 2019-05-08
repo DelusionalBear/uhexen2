@@ -427,14 +427,12 @@ static void CL_ParseServerInfo (void)
 		{
 			cl.ex_items = (ex_item_t *)Hunk_AllocName(MAX_ITEMS_EX * sizeof(ex_item_t), "ex_items_cl");
 			cl.num_ex_items = 0;
-			/*
 			for (i = 0; i < 15; i++)
 			{
 				cl.num_ex_items += 1;
 				cl.ex_items[i].id = (int)(i + 1);
 				q_strlcpy(cl.ex_items[i].icon, va("gfx/arti%02d.lmp", i), MAX_QPATH);
 			}
-			*/
 		}
 		//shan check with no ex_items received?
 		for (numitems = 0; ; numitems++)
@@ -445,13 +443,19 @@ static void CL_ParseServerInfo (void)
 				break;
 
 			str = MSG_ReadString();
-			if (numitems == MAX_ITEMS_EX)
+			for (i = 0; i < MAX_ITEMS_EX; i++)
+			{
+				if ((cl.ex_items[i].id == 0) || (cl.ex_items[i].id == j))
+					break;
+			}
+
+			if (i == MAX_ITEMS_EX)
 			{
 				Con_Printf("Server sent too many item defs\n");
 				return;
 			}
-			cl.ex_items[numitems].id = j;
-			q_strlcpy(cl.ex_items[numitems].icon, str, MAX_QPATH);
+			cl.ex_items[i].id = j;
+			q_strlcpy(cl.ex_items[i].icon, str, MAX_QPATH);
 			cl.num_ex_items += 1;
 		}
 
@@ -1739,8 +1743,8 @@ void CL_ParseServerMessage (void)
 				{
 					if (cl.ex_inventory->item_id[i] == 1)
 					{
-						//cl.ex_inventory->changed_items |= (1 << i);
 						cl.ex_inventory->item_cnt[i] = (int)cl.v.cnt_torch;
+						//cl.ex_inventory->changed_items |= (1 << i);
 
 						break;
 					}
