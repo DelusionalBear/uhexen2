@@ -783,6 +783,7 @@ int SaveGamestate (qboolean ClientsOnly)
 			else
 				fprintf (f, "m\n");
 		}
+		INV_SavePages(f);
 		SV_SaveEffects (f);
 		fprintf (f, "-1\n");
 		ED_WriteGlobals (f);
@@ -802,7 +803,6 @@ int SaveGamestate (qboolean ClientsOnly)
 			{
 				fprintf (f, "%i\n", i);
 				ED_Write (f, ent);
-				INV_Write(f, host_client->ex_inventory);
 				fflush (f);
 			}
 			host_client++;
@@ -951,6 +951,7 @@ static int LoadGamestate (const char *level, const char *startspot, int ClientsM
 			fscanf (f, "%s\n", str);
 			sv.lightstyles[i] = (const char *)Hunk_Strdup (str, "lightstyles");
 		}
+		SV_LoadInventory(f);
 		SV_LoadEffects (f);
 	}
 

@@ -1068,6 +1068,7 @@ static int LoadGamestate (const char *level, const char *startspot, int ClientsM
 			fscanf (f, "%s\n", str);
 			sv.lightstyles[i] = (const char *)Hunk_Strdup (str, "lightstyles");
 		}
+		SV_LoadInventory(f);
 		SV_LoadEffects (f);
 	}
 

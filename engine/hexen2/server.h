@@ -48,6 +48,20 @@ typedef struct ex_item_s
 	const char		icon[MAX_QPATH];
 } ex_item_t;
 
+typedef struct ex_inventory_page_s
+{
+	int		id;
+	int		client_id;
+	int		changed_items;		// inventory change bit flags
+	int		new_items;		// inventory change bit flags
+	int		item_id[32];
+	int		item_cnt[32];
+	int		inv_order[32];
+	float	item_gettime[32];	// cl.time of aquiring item, for blinking
+	struct ex_inventory_page_s *next;
+	//struct ex_inventory_page_s	*next2;
+} ex_inventory_page_t;
+
 typedef struct
 {
 	qboolean	active;		// false if only a net client
@@ -90,6 +104,7 @@ typedef struct
 	sizebuf_t	signon;
 	byte		signon_buf[NET_MAXMESSAGE];
 	ex_item_t	*ex_items;
+	int			next_page_id;
 	ex_inventory_page_t	*ex_inventory_pages;
 	int			num_ex_items;
 } server_t;
@@ -97,19 +112,6 @@ typedef struct
 
 #define	NUM_PING_TIMES		16
 #define	NUM_SPAWN_PARMS		16
-
-typedef struct ex_inventory_page_s
-{
-	int		id;
-	int		changed_items;		// inventory change bit flags
-	int		new_items;		// inventory change bit flags
-	int		item_id[32];
-	int		item_cnt[32];
-	int		inv_order[32];
-	float	item_gettime[32];	// cl.time of aquiring item, for blinking
-	struct ex_inventory_page_s *next;
-	//struct ex_inventory_page_s	*next2;
-} ex_inventory_page_t;
 
 typedef struct client_s
 {

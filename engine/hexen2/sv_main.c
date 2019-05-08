@@ -574,7 +574,7 @@ static void SV_ConnectClient (int clientnum)
 	client_t		*client;
 	int				edictnum;
 	struct qsocket_s *netconnection;
-//	int			i;
+	int			i;
 	float			spawn_parms[NUM_SPAWN_PARMS];
 
 	client = svs.clients + clientnum;
@@ -598,7 +598,15 @@ static void SV_ConnectClient (int clientnum)
 	client->active = true;
 	client->spawned = false;
 	client->edict = ent;
-	client->ex_inventory = sv.ex_inventory_pages[0];
+
+	//find matching or first empty inventory page
+	for (i = 0; ((i < svs.maxclients) && (sv.ex_inventory_pages[i].id != 0) && (sv.ex_inventory_pages[i].client_id != clientnum)); i++);
+	if (i < svs.maxclients)
+	{
+		client->ex_inventory = &sv.ex_inventory_pages[i];
+		if (client->ex_inventory->id == 0)
+			client->ex_inventory->id = ++sv.next_page_id;
+	}
 
 	SZ_Init (&client->message, client->msgbuf, sizeof(client->msgbuf));
 	client->message.allowoverflow = true;	// we can catch it
@@ -2126,12 +2134,6 @@ void SV_SaveSpawnparms (void)
 
 
 
-//shan save inventory
-// All changes need to be in SV_SaveInventory(), SV_LoadInventory(), CL_ParseInventory()
-void SV_SaveInventory(FILE *FH)
-{
-}
-
 /*
 =============
 INV_Write
@@ -2139,12 +2141,12 @@ INV_Write
 For savegames
 =============
 */
-void INV_Write(FILE *f, int clientId, ex_inventory_page_t *page)
+void INV_WritePage(FILE *f, ex_inventory_page_t *page, int clientId)
 {
 	int i;
 
-	//fprintf(f, "Pages: %i\n", 1);
-	fprintf(f, "Page: %i %i", page->id, clientId); //page_id, client_id
+	//Page: id, next_id, client_id, {item_id, item_cnt} ...
+	fprintf(f, "Page: %i %i %i", page->id, (page->next != NULL ? page->next->id : -1), clientId); //page_id, next_id, client_id
 	for (i = 0; i < MAX_INVENTORY_EX; i++)
 	{
 		if ((page->item_id[i] != 0) && (page->item_cnt[i] > 0))
@@ -2152,12 +2154,7 @@ void INV_Write(FILE *f, int clientId, ex_inventory_page_t *page)
 			fprintf(f, " %i %i", page->item_id[i], page->item_cnt[i]); //item_id, item_cnt
 		}
 	}
-
-	if (page->next != NULL)
-		fprintf(f, " %i\n", page->next->id);
-	else
-		fprintf(f, " -1\n"); //item_id, item_cnt
-
+	fprintf(f, "\n");
 
 	//fprintf(f, "\"%s\" ", name);
 	//fprintf(f, "Server Time: %f\n", sv.time);
@@ -2166,25 +2163,70 @@ void INV_Write(FILE *f, int clientId, ex_inventory_page_t *page)
 }
 
 
-/*
+
 // All changes need to be in SV_SaveInventory(), SV_LoadInventory(), CL_ParseInventory()
 void SV_LoadInventory(FILE *FH)
 {
+	int Total = 0;
+	int id, clientId, nextId, count, c, i;
+	int item_id, item_cnt, item_idx;
+
+	fscanf(FH, "Pages: %d\n", &Total);
+	if (Total < 0 || Total > MAX_CLIENTS)
+		Host_Error("%s: bad numpages", __thisfunc__);
+
+	//Page: id, next_id, client_id, {item_id, item_cnt} ...
+	for (count = 0; count < Total; count++)
+	{
+		fscanf(FH, "Page: %d %d %d", &id, &nextId, &clientId);
+		for (i = 0; ((i < svs.maxclients) && (sv.ex_inventory_pages[i].id != 0)); i++);
+		//svs.clients[clientId].ex_inventory = &sv.ex_inventory_pages[i];
+		//svs.clients[clientId].ex_inventory->id = id;
+		//svs.clients[clientId].ex_inventory->client_id = clientId;
+		sv.ex_inventory_pages[i].id = id;
+		sv.ex_inventory_pages[i].client_id = clientId;
+		if (id > sv.next_page_id)
+			sv.next_page_id = id;
+
+		item_idx = 0;
+		c = fgetc(FH);	/* read one char, see what it is: */
+		while ((c != '\n') && (c != '\r'))
+		{
+			fscanf(FH, "%d %d", &item_id, &item_cnt);
+			sv.ex_inventory_pages[i].item_id[item_idx] = item_id;
+			sv.ex_inventory_pages[i].item_cnt[item_idx] = item_cnt;
+
+			item_idx++;
+			c = fgetc(FH);	/* read one char, see what it is: */
+		}
+	}
+
+	Total = Total;
 }
-*/
+
 
 
 
 void INV_SavePages(FILE *FH)
 {
-	int i;
+	int i, j;
 	client_t	*host_client;
 
-	fprintf(FH, "Pages: %i\n", svs.maxclients);
+	j = 0;
 	host_client = svs.clients;
 	for (i = 0; i < svs.maxclients; i++, host_client++)
 	{
-		INV_Write(FH, i+1, &host_client->ex_inventory);
+		if (host_client->ex_inventory != NULL)
+			j++;
+	}
+
+	fprintf(FH, "Pages: %i\n", j);
+
+	host_client = svs.clients;
+	for (i = 0; i < svs.maxclients; i++, host_client++)
+	{
+		if (host_client->ex_inventory != NULL)
+			INV_WritePage(FH, host_client->ex_inventory, i);
 	}
 }
 
