@@ -1735,105 +1735,35 @@ void CL_ParseServerMessage (void)
 			if (sc1 & SC1_EXPERIENCE)
 				cl.v.experience = MSG_ReadLong();
 			if (sc1 & SC1_CNT_TORCH)
-			{
-				cl.v.cnt_torch = MSG_ReadByte();
-
-				// try to find a matching slot
-				for (i = 0; i < MAX_INVENTORY_EX; i++)
-				{
-					if (cl.ex_inventory->item_id[i] == 1)
-					{
-						cl.ex_inventory->item_cnt[i] = (int)cl.v.cnt_torch;
-						//cl.ex_inventory->changed_items |= (1 << i);
-
-						break;
-					}
-				}
-
-				if (cl.v.cnt_torch != 0.0f)
-				{
-					// no matching slot found, create one at first empty
-					if (i == MAX_INVENTORY_EX)
-					{
-						for (i = 0; i < MAX_INVENTORY_EX; i++)
-						{
-							if (cl.ex_inventory->item_id[i] == 0)
-							{
-								cl.ex_inventory->item_id[i] = 1;
-								cl.ex_inventory->item_cnt[i] = (int)cl.v.cnt_torch;
-
-								//cl.ex_inventory->changed_items |= (1 << i);
-								//cl.ex_inventory->new_items |= (1 << i);
-
-								break;
-							}
-						}
-					}
-				}
-			}
+				cl.v.cnt_torch = MSG_ReadByte(), INV_UpdateExItem(cl.ex_inventory, 1, (int)cl.v.cnt_torch, false);
 			if (sc1 & SC1_CNT_H_BOOST)
-			{
-				cl.v.cnt_h_boost = MSG_ReadByte();
-
-				// try to find a matching slot
-				for (i = 0; i < MAX_INVENTORY_EX; i++)
-				{
-					if (cl.ex_inventory->item_id[i] == 2)
-					{
-						cl.ex_inventory->item_cnt[i] = (int)cl.v.cnt_h_boost;
-						//cl.ex_inventory->changed_items |= (1 << i);
-
-						break;
-					}
-				}
-
-				if (cl.v.cnt_h_boost != 0.0f)
-				{
-					// no matching slot found, create one at first empty
-					if (i == MAX_INVENTORY_EX)
-					{
-						for (i = 0; i < MAX_INVENTORY_EX; i++)
-						{
-							if (cl.ex_inventory->item_id[i] == 0)
-							{
-								cl.ex_inventory->item_id[i] = 2;
-								cl.ex_inventory->item_cnt[i] = (int)cl.v.cnt_h_boost;
-
-								//cl.ex_inventory->changed_items |= (1 << i);
-								//cl.ex_inventory->new_items |= (1 << i);
-
-								break;
-							}
-						}
-					}
-				}
-			}
+				cl.v.cnt_h_boost = MSG_ReadByte(), INV_UpdateExItem(cl.ex_inventory, 2, (int)cl.v.cnt_h_boost, false);
 			if (sc1 & SC1_CNT_SH_BOOST)
-				cl.v.cnt_sh_boost = MSG_ReadByte();
+				cl.v.cnt_sh_boost = MSG_ReadByte(), INV_UpdateExItem(cl.ex_inventory, 3, (int)cl.v.cnt_sh_boost, false);
 			if (sc1 & SC1_CNT_MANA_BOOST)
-				cl.v.cnt_mana_boost = MSG_ReadByte();
+				cl.v.cnt_mana_boost = MSG_ReadByte(), INV_UpdateExItem(cl.ex_inventory, 4, (int)cl.v.cnt_mana_boost, false);
 			if (sc1 & SC1_CNT_TELEPORT)
-				cl.v.cnt_teleport = MSG_ReadByte();
+				cl.v.cnt_teleport = MSG_ReadByte(), INV_UpdateExItem(cl.ex_inventory, 5, (int)cl.v.cnt_teleport, false);
 			if (sc1 & SC1_CNT_TOME)
-				cl.v.cnt_tome = MSG_ReadByte();
+				cl.v.cnt_tome = MSG_ReadByte(), INV_UpdateExItem(cl.ex_inventory, 6, (int)cl.v.cnt_tome, false);
 			if (sc1 & SC1_CNT_SUMMON)
-				cl.v.cnt_summon = MSG_ReadByte();
+				cl.v.cnt_summon = MSG_ReadByte(), INV_UpdateExItem(cl.ex_inventory, 7, (int)cl.v.cnt_summon, false);
 			if (sc1 & SC1_CNT_INVISIBILITY)
-				cl.v.cnt_invisibility = MSG_ReadByte();
+				cl.v.cnt_invisibility = MSG_ReadByte(), INV_UpdateExItem(cl.ex_inventory, 8, (int)cl.v.cnt_invisibility, false);
 			if (sc1 & SC1_CNT_GLYPH)
-				cl.v.cnt_glyph = MSG_ReadByte();
+				cl.v.cnt_glyph = MSG_ReadByte(), INV_UpdateExItem(cl.ex_inventory, 9, (int)cl.v.cnt_glyph, false);
 			if (sc1 & SC1_CNT_HASTE)
-				cl.v.cnt_haste = MSG_ReadByte();
+				cl.v.cnt_haste = MSG_ReadByte(), INV_UpdateExItem(cl.ex_inventory, 10, (int)cl.v.cnt_haste, false);
 			if (sc1 & SC1_CNT_BLAST)
-				cl.v.cnt_blast = MSG_ReadByte();
+				cl.v.cnt_blast = MSG_ReadByte(), INV_UpdateExItem(cl.ex_inventory, 11, (int)cl.v.cnt_blast, false);
 			if (sc1 & SC1_CNT_POLYMORPH)
-				cl.v.cnt_polymorph = MSG_ReadByte();
+				cl.v.cnt_polymorph = MSG_ReadByte(), INV_UpdateExItem(cl.ex_inventory, 12, (int)cl.v.cnt_polymorph, false);
 			if (sc1 & SC1_CNT_FLIGHT)
-				cl.v.cnt_flight = MSG_ReadByte();
+				cl.v.cnt_flight = MSG_ReadByte(), INV_UpdateExItem(cl.ex_inventory, 13, (int)cl.v.cnt_flight, false);
 			if (sc1 & SC1_CNT_CUBEOFFORCE)
-				cl.v.cnt_cubeofforce = MSG_ReadByte();
+				cl.v.cnt_cubeofforce = MSG_ReadByte(), INV_UpdateExItem(cl.ex_inventory, 14, (int)cl.v.cnt_cubeofforce, false);
 			if (sc1 & SC1_CNT_INVINCIBILITY)
-				cl.v.cnt_invincibility = MSG_ReadByte();
+				cl.v.cnt_invincibility = MSG_ReadByte(), INV_UpdateExItem(cl.ex_inventory, 15, (int)cl.v.cnt_invincibility, false);
 			if (sc1 & SC1_ARTIFACT_ACTIVE)
 				cl.v.artifact_active = MSG_ReadFloat();
 			if (sc1 & SC1_ARTIFACT_LOW)

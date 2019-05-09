@@ -3354,7 +3354,7 @@ static void PF_update_ex_item(void)
 		PR_RunError("Entity is not a client");
 
 	client = svs.clients + (i - 1);
-	result = SV_UpdateExInventory(client, item_id, item_count);
+	result = INV_UpdateExItem(client->ex_inventory, item_id, item_count, true);
 
 	G_FLOAT(OFS_RETURN) = result;
 	//PR_RunError("%s: overflow", __thisfunc__);

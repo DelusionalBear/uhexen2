@@ -431,7 +431,7 @@ void SV_StartSound (edict_t *entity, int channel, const char *sample, int volume
 SV_UpdateExInventory
 ==================
 */
-int SV_UpdateExInventory(client_t *client, int inv_id, int inv_cnt)
+int INV_UpdateExItem(ex_inventory_page_t *startPage, int inv_id, int inv_cnt, qboolean inc)
 {
 	int i, result;
 
@@ -439,11 +439,15 @@ int SV_UpdateExInventory(client_t *client, int inv_id, int inv_cnt)
 	// try to find a matching slot
 	for (i = 0; i < MAX_INVENTORY_EX; i++)
 	{
-		if (client->ex_inventory->item_id[i] == inv_id)
+		if (startPage->item_id[i] == inv_id)
 		{
-			client->ex_inventory->item_cnt[i] += inv_cnt;
-			client->ex_inventory->changed_items |= (1 << i);
-			result = client->ex_inventory->item_cnt[i];
+			if (inc)
+				startPage->item_cnt[i] += inv_cnt;
+			else
+				startPage->item_cnt[i] = inv_cnt;
+
+			startPage->changed_items |= (1 << i);
+			result = startPage->item_cnt[i];
 
 			break;
 		}
@@ -456,14 +460,18 @@ int SV_UpdateExInventory(client_t *client, int inv_id, int inv_cnt)
 		{
 			for (i = 0; i < MAX_ITEMS_EX; i++)
 			{
-				if (client->ex_inventory->item_id[i] == 0)
+				if (startPage->item_id[i] == 0)
 				{
-					client->ex_inventory->item_id[i] = inv_id;
-					client->ex_inventory->item_cnt[i] += inv_cnt;
-					result = client->ex_inventory->item_cnt[i];
+					startPage->item_id[i] = inv_id;
 
-					client->ex_inventory->changed_items |= (1 << i);
-					client->ex_inventory->new_items |= (1 << i);
+					if (inc)
+						startPage->item_cnt[i] += inv_cnt;
+					else
+						startPage->item_cnt[i] = inv_cnt;
+
+					startPage->changed_items |= (1 << i);
+					startPage->new_items |= (1 << i);
+					result = startPage->item_cnt[i];
 
 					break;
 				}
@@ -1555,35 +1563,35 @@ void SV_WriteClientdataToMessage (client_t *client, edict_t *ent, sizebuf_t *msg
 	if (sc1 & SC1_EXPERIENCE)
 		MSG_WriteLong (&host_client->message, ent->v.experience);
 	if (sc1 & SC1_CNT_TORCH)
-		MSG_WriteByte(&host_client->message, ent->v.cnt_torch), SV_UpdateExInventory(host_client, 1, (int)ent->v.cnt_torch);
+		MSG_WriteByte(&host_client->message, ent->v.cnt_torch), INV_UpdateExItem(host_client->ex_inventory, 1, (int)ent->v.cnt_torch, false);
 	if (sc1 & SC1_CNT_H_BOOST)
-		MSG_WriteByte(&host_client->message, ent->v.cnt_h_boost), SV_UpdateExInventory(host_client, 2, (int)ent->v.cnt_h_boost);
+		MSG_WriteByte(&host_client->message, ent->v.cnt_h_boost), INV_UpdateExItem(host_client->ex_inventory, 2, (int)ent->v.cnt_h_boost, false);
 	if (sc1 & SC1_CNT_SH_BOOST)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_sh_boost), SV_UpdateExInventory(host_client, 3, (int)ent->v.cnt_sh_boost);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_sh_boost), INV_UpdateExItem(host_client->ex_inventory, 3, (int)ent->v.cnt_sh_boost, false);
 	if (sc1 & SC1_CNT_MANA_BOOST)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_mana_boost), SV_UpdateExInventory(host_client, 4, (int)ent->v.cnt_mana_boost);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_mana_boost), INV_UpdateExItem(host_client->ex_inventory, 4, (int)ent->v.cnt_mana_boost, false);
 	if (sc1 & SC1_CNT_TELEPORT)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_teleport), SV_UpdateExInventory(host_client, 5, (int)ent->v.cnt_teleport);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_teleport), INV_UpdateExItem(host_client->ex_inventory, 5, (int)ent->v.cnt_teleport, false);
 	if (sc1 & SC1_CNT_TOME)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_tome), SV_UpdateExInventory(host_client, 6, (int)ent->v.cnt_tome);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_tome), INV_UpdateExItem(host_client->ex_inventory, 6, (int)ent->v.cnt_tome, false);
 	if (sc1 & SC1_CNT_SUMMON)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_summon), SV_UpdateExInventory(host_client, 7, (int)ent->v.cnt_summon);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_summon), INV_UpdateExItem(host_client->ex_inventory, 7, (int)ent->v.cnt_summon, false);
 	if (sc1 & SC1_CNT_INVISIBILITY)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_invisibility), SV_UpdateExInventory(host_client, 8, (int)ent->v.cnt_invisibility);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_invisibility), INV_UpdateExItem(host_client->ex_inventory, 8, (int)ent->v.cnt_invisibility, false);
 	if (sc1 & SC1_CNT_GLYPH)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_glyph), SV_UpdateExInventory(host_client, 9, (int)ent->v.cnt_glyph);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_glyph), INV_UpdateExItem(host_client->ex_inventory, 9, (int)ent->v.cnt_glyph, false);
 	if (sc1 & SC1_CNT_HASTE)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_haste), SV_UpdateExInventory(host_client, 10, (int)ent->v.cnt_haste);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_haste), INV_UpdateExItem(host_client->ex_inventory, 10, (int)ent->v.cnt_haste, false);
 	if (sc1 & SC1_CNT_BLAST)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_blast), SV_UpdateExInventory(host_client, 11, (int)ent->v.cnt_blast);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_blast), INV_UpdateExItem(host_client->ex_inventory, 11, (int)ent->v.cnt_blast, false);
 	if (sc1 & SC1_CNT_POLYMORPH)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_polymorph), SV_UpdateExInventory(host_client, 12, (int)ent->v.cnt_polymorph);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_polymorph), INV_UpdateExItem(host_client->ex_inventory, 12, (int)ent->v.cnt_polymorph, false);
 	if (sc1 & SC1_CNT_FLIGHT)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_flight), SV_UpdateExInventory(host_client, 13, (int)ent->v.cnt_flight);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_flight), INV_UpdateExItem(host_client->ex_inventory, 13, (int)ent->v.cnt_flight, false);
 	if (sc1 & SC1_CNT_CUBEOFFORCE)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_cubeofforce), SV_UpdateExInventory(host_client, 14, (int)ent->v.cnt_cubeofforce);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_cubeofforce), INV_UpdateExItem(host_client->ex_inventory, 14, (int)ent->v.cnt_cubeofforce, false);
 	if (sc1 & SC1_CNT_INVINCIBILITY)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_invincibility), SV_UpdateExInventory(host_client, 15, (int)ent->v.cnt_invincibility);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_invincibility), INV_UpdateExItem(host_client->ex_inventory, 15, (int)ent->v.cnt_invincibility, false);
 	if (sc1 & SC1_ARTIFACT_ACTIVE)
 		MSG_WriteFloat (&host_client->message, ent->v.artifact_active);
 	if (sc1 & SC1_ARTIFACT_LOW)
