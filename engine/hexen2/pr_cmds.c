@@ -3354,44 +3354,7 @@ static void PF_update_ex_item(void)
 		PR_RunError("Entity is not a client");
 
 	client = svs.clients + (i - 1);
-
-	// try to find a matching slot
-	for (i = 0; i < 32; i++)
-	{
-		if (client->ex_inventory->item_id[i] == item_id)
-		{
-			client->ex_inventory->item_cnt[i] += item_count;
-			result = client->ex_inventory->item_cnt[i];
-
-			if (item_count)
-			{
-				client->ex_inventory->changed_items |= (1 << i);
-			}
-
-			break;
-		}
-	}
-
-	// no matching slot found, create one at first empty
-	if (i == 32)
-	{
-		for (i = 0; i < 32; i++)
-		{
-			if (client->ex_inventory->item_id[i] == 0)
-			{
-				client->ex_inventory->item_id[i] = item_id;
-				client->ex_inventory->item_cnt[i] += item_count;
-				result = client->ex_inventory->item_cnt[i];
-
-				if (item_count)
-				{
-					client->ex_inventory->changed_items |= (1 << i);
-					client->ex_inventory->new_items |= (1 << i);
-				}
-				break;
-			}
-		}
-	}
+	result = SV_UpdateExInventory(client, item_id, item_count);
 
 	G_FLOAT(OFS_RETURN) = result;
 	//PR_RunError("%s: overflow", __thisfunc__);

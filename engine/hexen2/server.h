@@ -294,7 +294,7 @@ void SV_StartParticle4 (vec3_t org, float radius, int color, int effect, int cou
 void SV_StartSound (edict_t *entity, int channel, const char *sample, int volume, float attenuation);
 void SV_StopSound (edict_t *entity, int channel);
 void SV_UpdateSoundPos (edict_t *entity, int channel);
-void SV_UpdateExInventory(edict_t *entity, int inv_id, int inv_cnt);
+int SV_UpdateExInventory(client_t *client, int inv_id, int inv_cnt);
 
 void SV_DropClient (qboolean crash);
 

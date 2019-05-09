@@ -431,18 +431,47 @@ void SV_StartSound (edict_t *entity, int channel, const char *sample, int volume
 SV_UpdateExInventory
 ==================
 */
-void SV_UpdateExInventory(edict_t *entity, int inv_id, int inv_cnt)
+int SV_UpdateExInventory(client_t *client, int inv_id, int inv_cnt)
 {
-	int			ent;
+	int i, result;
 
-	if (sv.datagram.cursize > (PROTOCOL_UH2_114 - 2))
-		return;
+	result = 0;
+	// try to find a matching slot
+	for (i = 0; i < MAX_INVENTORY_EX; i++)
+	{
+		if (client->ex_inventory->item_id[i] == inv_id)
+		{
+			client->ex_inventory->item_cnt[i] += inv_cnt;
+			client->ex_inventory->changed_items |= (1 << i);
+			result = client->ex_inventory->item_cnt[i];
 
-	ent = NUM_FOR_EDICT(entity);
+			break;
+		}
+	}
 
-	MSG_WriteShort(&sv.datagram, ent);
-	MSG_WriteByte(&sv.datagram, inv_id);
-	MSG_WriteByte(&sv.datagram, inv_cnt);
+	if (inv_cnt != 0)
+	{
+		// no matching slot found, create one at first empty
+		if (i == MAX_INVENTORY_EX)
+		{
+			for (i = 0; i < MAX_ITEMS_EX; i++)
+			{
+				if (client->ex_inventory->item_id[i] == 0)
+				{
+					client->ex_inventory->item_id[i] = inv_id;
+					client->ex_inventory->item_cnt[i] += inv_cnt;
+					result = client->ex_inventory->item_cnt[i];
+
+					client->ex_inventory->changed_items |= (1 << i);
+					client->ex_inventory->new_items |= (1 << i);
+
+					break;
+				}
+			}
+		}
+	}
+
+	return result;
 }
 
 /*
@@ -1526,104 +1555,35 @@ void SV_WriteClientdataToMessage (client_t *client, edict_t *ent, sizebuf_t *msg
 	if (sc1 & SC1_EXPERIENCE)
 		MSG_WriteLong (&host_client->message, ent->v.experience);
 	if (sc1 & SC1_CNT_TORCH)
-	{
-		MSG_WriteByte(&host_client->message, ent->v.cnt_torch);
-		// try to find a matching slot
-		for (i = 0; i < 32; i++)
-		{
-			if (host_client->ex_inventory->item_id[i] == 1)
-			{
-				host_client->ex_inventory->item_cnt[i] = (int)ent->v.cnt_torch;
-				host_client->ex_inventory->changed_items |= (1 << i);
-
-				break;
-			}
-		}
-
-		if (ent->v.cnt_torch != 0.0f)
-		{
-			// no matching slot found, create one at first empty
-			if (i == 32)
-			{
-				for (i = 0; i < MAX_ITEMS_EX; i++)
-				{
-					if (host_client->ex_inventory->item_id[i] == 0)
-					{
-						host_client->ex_inventory->item_id[i] = 1;
-						host_client->ex_inventory->item_cnt[i] = (int)ent->v.cnt_torch;
-
-						host_client->ex_inventory->changed_items |= (1 << i);
-						host_client->ex_inventory->new_items |= (1 << i);
-
-						break;
-					}
-				}
-			}
-		}
-	}
+		MSG_WriteByte(&host_client->message, ent->v.cnt_torch), SV_UpdateExInventory(host_client, 1, (int)ent->v.cnt_torch);
 	if (sc1 & SC1_CNT_H_BOOST)
-	{
-		MSG_WriteByte(&host_client->message, ent->v.cnt_h_boost);
-		// try to find a matching slot
-		for (i = 0; i < 32; i++)
-		{
-			if (host_client->ex_inventory->item_id[i] == 2)
-			{
-				host_client->ex_inventory->item_cnt[i] = (int)ent->v.cnt_h_boost;
-
-				host_client->ex_inventory->changed_items |= (1 << i);
-
-				break;
-			}
-		}
-
-		if (ent->v.cnt_h_boost != 0.0f)
-		{
-			// no matching slot found, create one at first empty
-			if (i == 32)
-			{
-				for (i = 0; i < MAX_ITEMS_EX; i++)
-				{
-					if (host_client->ex_inventory->item_id[i] == 0)
-					{
-						host_client->ex_inventory->item_id[i] = 2;
-						host_client->ex_inventory->item_cnt[i] = (int)ent->v.cnt_h_boost;
-
-						host_client->ex_inventory->changed_items |= (1 << i);
-						host_client->ex_inventory->new_items |= (1 << i);
-
-						break;
-					}
-				}
-			}
-		}
-	}
+		MSG_WriteByte(&host_client->message, ent->v.cnt_h_boost), SV_UpdateExInventory(host_client, 2, (int)ent->v.cnt_h_boost);
 	if (sc1 & SC1_CNT_SH_BOOST)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_sh_boost);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_sh_boost), SV_UpdateExInventory(host_client, 3, (int)ent->v.cnt_sh_boost);
 	if (sc1 & SC1_CNT_MANA_BOOST)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_mana_boost);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_mana_boost), SV_UpdateExInventory(host_client, 4, (int)ent->v.cnt_mana_boost);
 	if (sc1 & SC1_CNT_TELEPORT)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_teleport);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_teleport), SV_UpdateExInventory(host_client, 5, (int)ent->v.cnt_teleport);
 	if (sc1 & SC1_CNT_TOME)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_tome);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_tome), SV_UpdateExInventory(host_client, 6, (int)ent->v.cnt_tome);
 	if (sc1 & SC1_CNT_SUMMON)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_summon);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_summon), SV_UpdateExInventory(host_client, 7, (int)ent->v.cnt_summon);
 	if (sc1 & SC1_CNT_INVISIBILITY)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_invisibility);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_invisibility), SV_UpdateExInventory(host_client, 8, (int)ent->v.cnt_invisibility);
 	if (sc1 & SC1_CNT_GLYPH)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_glyph);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_glyph), SV_UpdateExInventory(host_client, 9, (int)ent->v.cnt_glyph);
 	if (sc1 & SC1_CNT_HASTE)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_haste);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_haste), SV_UpdateExInventory(host_client, 10, (int)ent->v.cnt_haste);
 	if (sc1 & SC1_CNT_BLAST)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_blast);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_blast), SV_UpdateExInventory(host_client, 11, (int)ent->v.cnt_blast);
 	if (sc1 & SC1_CNT_POLYMORPH)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_polymorph);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_polymorph), SV_UpdateExInventory(host_client, 12, (int)ent->v.cnt_polymorph);
 	if (sc1 & SC1_CNT_FLIGHT)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_flight);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_flight), SV_UpdateExInventory(host_client, 13, (int)ent->v.cnt_flight);
 	if (sc1 & SC1_CNT_CUBEOFFORCE)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_cubeofforce);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_cubeofforce), SV_UpdateExInventory(host_client, 14, (int)ent->v.cnt_cubeofforce);
 	if (sc1 & SC1_CNT_INVINCIBILITY)
-		MSG_WriteByte (&host_client->message, ent->v.cnt_invincibility);
+		MSG_WriteByte (&host_client->message, ent->v.cnt_invincibility), SV_UpdateExInventory(host_client, 15, (int)ent->v.cnt_invincibility);
 	if (sc1 & SC1_ARTIFACT_ACTIVE)
 		MSG_WriteFloat (&host_client->message, ent->v.artifact_active);
 	if (sc1 & SC1_ARTIFACT_LOW)
@@ -2121,19 +2081,6 @@ void SV_SaveSpawnparms (void)
 	}
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 /*
 =============
 INV_Write
@@ -2155,14 +2102,7 @@ void INV_WritePage(FILE *f, ex_inventory_page_t *page, int clientId)
 		}
 	}
 	fprintf(f, "\n");
-
-	//fprintf(f, "\"%s\" ", name);
-	//fprintf(f, "Server Time: %f\n", sv.time);
-	//fprintf(f, "\"%s\"\n", PR_UglyValueString(d->type, (eval_t *)v));
-
 }
-
-
 
 // All changes need to be in SV_SaveInventory(), SV_LoadInventory(), CL_ParseInventory()
 void SV_LoadInventory(FILE *FH)
@@ -2180,9 +2120,6 @@ void SV_LoadInventory(FILE *FH)
 	{
 		fscanf(FH, "Page: %d %d %d", &id, &nextId, &clientId);
 		for (i = 0; ((i < svs.maxclients) && (sv.ex_inventory_pages[i].id != 0)); i++);
-		//svs.clients[clientId].ex_inventory = &sv.ex_inventory_pages[i];
-		//svs.clients[clientId].ex_inventory->id = id;
-		//svs.clients[clientId].ex_inventory->client_id = clientId;
 		sv.ex_inventory_pages[i].id = id;
 		sv.ex_inventory_pages[i].client_id = clientId;
 		if (id > sv.next_page_id)
@@ -2195,6 +2132,8 @@ void SV_LoadInventory(FILE *FH)
 			fscanf(FH, "%d %d", &item_id, &item_cnt);
 			sv.ex_inventory_pages[i].item_id[item_idx] = item_id;
 			sv.ex_inventory_pages[i].item_cnt[item_idx] = item_cnt;
+			sv.ex_inventory_pages[i].changed_items |= (1 << item_idx);
+			sv.ex_inventory_pages[i].new_items |= (1 << item_idx);
 
 			item_idx++;
 			c = fgetc(FH);	/* read one char, see what it is: */
@@ -2203,9 +2142,6 @@ void SV_LoadInventory(FILE *FH)
 
 	Total = Total;
 }
-
-
-
 
 void INV_SavePages(FILE *FH)
 {
@@ -2229,24 +2165,6 @@ void INV_SavePages(FILE *FH)
 			INV_WritePage(FH, host_client->ex_inventory, i);
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /*
 ================
