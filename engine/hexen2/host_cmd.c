@@ -901,11 +901,13 @@ int SaveGamestate (qboolean ClientsOnly)
 			else
 				fprintf (f, "m\n");
 		}
-		INV_SavePages(f);
 		SV_SaveEffects (f);
+		INV_SavePages(f);
 		fprintf (f, "-1\n");
 		ED_WriteGlobals (f);
 	}
+	else
+		INV_SavePages(f);
 
 	host_client = svs.clients;
 	// save the client states
@@ -978,9 +980,17 @@ static void RestoreClients (int ClientsMode)
 			*sv_globals.self = EDICT_TO_PROG(ent);
 			G_FLOAT(OFS_PARM0) = time_diff;
 			PR_ExecuteProgram (*sv_globals.ClientReEnter);
+
+			//find matching or first empty inventory page
+			for (j = 0; ((j < svs.maxclients) && (sv.ex_inventory_pages[j].id != 0) && (sv.ex_inventory_pages[j].client_id != i)); j++);
+			if (j < svs.maxclients)
+			{
+				host_client->ex_inventory = &sv.ex_inventory_pages[j];
+				if (host_client->ex_inventory->id == 0)
+					host_client->ex_inventory->id = ++sv.next_page_id;
+			}
 		}
 	}
-
 	SaveGamestate (true);
 }
 
@@ -1068,9 +1078,11 @@ static int LoadGamestate (const char *level, const char *startspot, int ClientsM
 			fscanf (f, "%s\n", str);
 			sv.lightstyles[i] = (const char *)Hunk_Strdup (str, "lightstyles");
 		}
+		SV_LoadEffects(f);
 		SV_LoadInventory(f);
-		SV_LoadEffects (f);
 	}
+	else if (ClientsMode == 1)
+		SV_LoadInventory(f);
 
 // load the edicts out of the savegame file
 	while (!feof(f))
