@@ -131,10 +131,12 @@ static byte *Mod_DecompressVis (byte *in, qmodel_t *model)
 	static byte	decompressed[MAX_MAP_LEAFS/8];
 	int		c;
 	byte	*out;
+	byte	*outend;
 	int		row;
 
 	row = (model->numleafs+7)>>3;
 	out = decompressed;
+	outend = decompressed + row;
 
 	if (!in)
 	{	// no vis info, so make all visible
@@ -158,6 +160,10 @@ static byte *Mod_DecompressVis (byte *in, qmodel_t *model)
 		in += 2;
 		while (c)
 		{
+			if (out == outend)
+			{
+				return decompressed;
+			}
 			*out++ = 0;
 			c--;
 		}
@@ -464,6 +470,8 @@ static void Mod_LoadTextures (lump_t *l)
 		{	// load internal bsp pixel data
 bsp_tex_internal:
 #endif /* WAL_TEXTURES */
+
+			
 			if ( (mt->width & 15) || (mt->height & 15) )
 				Sys_Error ("Texture %s is not 16 aligned", mt->name);
 			pixels = mt->width*mt->height/64*85;
@@ -486,10 +494,18 @@ bsp_tex_internal:
 			continue;
 #endif	/* H2W */
 
+		// ericw -- fence textures
+		int	extraflags;
+
+		extraflags = 0;
+		if (tx->name[0] == '{')
+			extraflags |= TEX_HOLEY;
+		// ericw
+
 		if (!strncmp(mt->name,"sky",3))
 			R_InitSky (tx);
 		else
-			tx->gl_texturenum = GL_LoadTexture (mt->name, (byte *)(tx+1), tx->width, tx->height, TEX_MIPMAP);
+			tx->gl_texturenum = GL_LoadTexture (mt->name, (byte *)(tx+1), tx->width, tx->height, (TEX_MIPMAP | extraflags));
 	}
 
 //
@@ -1248,6 +1264,11 @@ static void Mod_LoadFaces (lump_t *l, qboolean lm)
 
 			continue;
 		}
+
+		if (out->texinfo->texture->name[0] == '{') // ericw -- fence textures
+		{
+			out->flags |= SURF_DRAWFENCE;
+		}
 	}
 }
 
@@ -1455,46 +1476,34 @@ Mod_LoadClipnodes
 */
 static void Mod_LoadClipnodes (lump_t *l, qboolean lm)
 {
+	dsclipnode_t *ins;
+	dlclipnode_t *inl;
+
 	mclipnode_t	*out;
 	int			i, count;
 	hull_t		*hull;
 
 	if (lm)
 	{
-		dlclipnode_t *in = (dlclipnode_t *)(mod_base + l->fileofs);
-		if (l->filelen % sizeof(*in))
+		ins = NULL;
+		inl = (dlclipnode_t *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*inl))
 			Sys_Error ("%s: funny lump size in %s", __thisfunc__, loadmodel->name);
-		count = l->filelen / sizeof(*in);
-		out = (mclipnode_t *) Hunk_AllocName (count * sizeof(*out), "clipnodes");
-
-		loadmodel->clipnodes = out;
-		loadmodel->numclipnodes = count;
-
-		for (i = 0; i < count; i++, out++, in++)
-		{
-			out->planenum = LittleLong(in->planenum);
-			out->children[0] = LittleLong(in->children[0]);
-			out->children[1] = LittleLong(in->children[1]);
-		}
+		count = l->filelen / sizeof(*inl);
 	}
 	else
 	{
-		dsclipnode_t *in = (dsclipnode_t *)(mod_base + l->fileofs);
-		if (l->filelen % sizeof(*in))
+		ins = (dsclipnode_t *)(mod_base + l->fileofs);
+		inl = NULL;
+		if (l->filelen % sizeof(*ins))
 			Sys_Error ("%s: funny lump size in %s", __thisfunc__, loadmodel->name);
-		count = l->filelen / sizeof(*in);
-		out = (mclipnode_t *) Hunk_AllocName (count * sizeof(*out), "clipnodes");
-
-		loadmodel->clipnodes = out;
-		loadmodel->numclipnodes = count;
-
-		for (i = 0; i < count; i++, out++, in++)
-		{
-			out->planenum = LittleLong(in->planenum);
-			out->children[0] = LittleShort(in->children[0]);
-			out->children[1] = LittleShort(in->children[1]);
-		}
+		count = l->filelen / sizeof(*ins);
 	}
+
+	out = (mclipnode_t *)Hunk_AllocName(count * sizeof(*out), "clipnodes");
+
+	loadmodel->clipnodes = out;
+	loadmodel->numclipnodes = count;
 
 //player
 	hull = &loadmodel->hulls[1];
@@ -1578,6 +1587,46 @@ static void Mod_LoadClipnodes (lump_t *l, qboolean lm)
 	hull->clip_maxs[1] = 48;
 	hull->clip_maxs[2] = 50;
 #endif
+
+	if (lm)
+	{
+		for (i = 0; i < count; i++, out++, inl++)
+		{
+			out->planenum = LittleLong(inl->planenum);
+
+			//johnfitz -- bounds check
+			if (out->planenum < 0 || out->planenum >= loadmodel->numplanes)
+				Host_Error("Mod_LoadClipnodes: planenum out of bounds");
+			//johnfitz
+
+			out->children[0] = LittleLong(inl->children[0]);
+			out->children[1] = LittleLong(inl->children[1]);
+			//Spike: FIXME: bounds check
+		}
+	}
+	else
+	{
+		for (i = 0; i < count; i++, out++, ins++)
+		{
+			out->planenum = LittleLong(ins->planenum);
+
+			//johnfitz -- bounds check
+			if (out->planenum < 0 || out->planenum >= loadmodel->numplanes)
+				Host_Error("Mod_LoadClipnodes: planenum out of bounds");
+			//johnfitz
+
+				//johnfitz -- support clipnodes > 32k
+			out->children[0] = (unsigned short)LittleShort(ins->children[0]);
+			out->children[1] = (unsigned short)LittleShort(ins->children[1]);
+
+			if (out->children[0] >= count)
+				out->children[0] -= 65536;
+			if (out->children[1] >= count)
+				out->children[1] -= 65536;
+			//johnfitz
+		}
+	}
+
 }
 
 /*
