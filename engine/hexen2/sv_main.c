@@ -2137,6 +2137,7 @@ void SV_LoadInventory(FILE *FH)
 	{
 		fscanf(FH, "Page: %d %d %d", &id, &nextId, &clientId);
 		for (i = 0; ((i < svs.maxclients) && (sv.ex_inventory_pages[i].id != 0) && (sv.ex_inventory_pages[i].client_id != clientId)); i++);
+		memset(&sv.ex_inventory_pages[i], 0, sizeof(ex_inventory_page_t));
 		sv.ex_inventory_pages[i].id = id;
 		sv.ex_inventory_pages[i].client_id = clientId;
 		if (id > sv.next_page_id)
