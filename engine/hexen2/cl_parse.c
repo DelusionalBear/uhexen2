@@ -449,7 +449,7 @@ static void CL_ParseServerInfo (void)
 					break;
 			}
 
-			if (i == MAX_ITEMS_EX)
+			if (i >= MAX_ITEMS_EX)
 			{
 				Con_Printf("Server sent too many item defs\n");
 				return;

@@ -433,51 +433,71 @@ SV_UpdateExInventory
 */
 int INV_UpdateExItem(ex_inventory_page_t *startPage, int inv_id, int inv_cnt, qboolean inc)
 {
+	qboolean bFound = false;
 	int i, result;
+	ex_inventory_page_t *page = startPage;
 
 	result = 0;
-	// try to find a matching slot
-	for (i = 0; i < MAX_INVENTORY_EX; i++)
+
+	while (page != NULL)
 	{
-		if (startPage->item_id[i] == inv_id)
+		// try to find a matching slot
+		for (i = 0; i < MAX_INVENTORY_EX; i++)
 		{
-			if (inc)
-				startPage->item_cnt[i] += inv_cnt;
-			else
-				startPage->item_cnt[i] = inv_cnt;
+			if (page->item_id[i] == inv_id)
+			{
+				if (inc)
+					page->item_cnt[i] += inv_cnt;
+				else
+					page->item_cnt[i] = inv_cnt;
 
-			startPage->changed_items |= (1 << i);
-			result = startPage->item_cnt[i];
+				page->changed_items |= (1 << i);
+				result = page->item_cnt[i];
+				bFound = true;
 
-			break;
+				break;
+			}
 		}
+		page = page->next;
 	}
 
-	if (inv_cnt != 0)
+	if (inv_cnt > 0)
 	{
 		// no matching slot found, create one at first empty
-		if (i == MAX_INVENTORY_EX)
+		if (bFound == false)
 		{
-			for (i = 0; i < MAX_ITEMS_EX; i++)
+			page = startPage;
+
+			while (page != NULL)
 			{
-				if (startPage->item_id[i] == 0)
+				for (i = 0; i < MAX_INVENTORY_EX; i++)
 				{
-					startPage->item_id[i] = inv_id;
+					if (page->item_id[i] == 0)
+					{
+						page->item_id[i] = inv_id;
 
-					if (inc)
-						startPage->item_cnt[i] += inv_cnt;
-					else
-						startPage->item_cnt[i] = inv_cnt;
+						if (inc)
+							page->item_cnt[i] += inv_cnt;
+						else
+							page->item_cnt[i] = inv_cnt;
 
-					startPage->changed_items |= (1 << i);
-					startPage->new_items |= (1 << i);
-					result = startPage->item_cnt[i];
+						page->changed_items |= (1 << i);
+						page->new_items |= (1 << i);
+						result = page->item_cnt[i];
+						bFound = true;
 
-					break;
+						break;
+					}
 				}
+
+				if (!bFound)
+					page = page->next;
+				else
+					break;
 			}
 		}
 	}
+
 
 	return result;
 }

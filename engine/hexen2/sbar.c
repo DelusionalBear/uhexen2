@@ -1186,22 +1186,28 @@ void Inv_Update(qboolean force)
 
 static void DrawBarArtifactIcon(int x, int y, int artifact)
 {
-	int	count, i;
+	int	count, j, i;
+	ex_inventory_page_t *page = cl.ex_inventory;
 
-	if (artifact < 0 || artifact >= MAX_INVENTORY_EX)
+	if (artifact < 0 || artifact >= MAX_ITEMS_EX)
 		return;
 
-	for (i = 0; i < MAX_INVENTORY_EX; i++)
+	while (page != NULL)
 	{
-		if (cl.ex_items[i].id == cl.ex_inventory->item_id[cl.ex_inventory->inv_order[artifact]])
+		for (i = 0; i < MAX_INVENTORY_EX; i++)
 		{
-			Sbar_DrawTransPic(x, y, Draw_CachePic(cl.ex_items[i].icon));
-			break;
-		}
-		
-	}
+			j = (page->inv_order[artifact & 31]);
+			if (cl.ex_items[j].id == page->item_id[j])
+			{
+				Sbar_DrawTransPic(x, y, Draw_CachePic(cl.ex_items[artifact].icon));
+				DrawBarArtifactNumber(x + 20, y + 21, page->item_cnt[j]);
+				break;
+			}
 
-	DrawBarArtifactNumber(x + 20, y + 21, cl.ex_inventory->item_cnt[cl.ex_inventory->inv_order[artifact]]);
+		}
+
+		page = page->next;
+	}
 }
 
 //==========================================================================
@@ -1439,15 +1445,104 @@ static void ToggleDM_f(void)
 
 void SB_InvChanged(void)
 {
-	int		counter, position, j;
+	int		counter, position, i, j;
 	qboolean	examined[MAX_INVENTORY_EX];
 	qboolean	ForceUpdate = false;
+	ex_inventory_page_t *page_from, *page_to, *page_seq = cl.ex_inventory;
 
 	memset (examined, 0, sizeof(examined));
 
-	if (cl.inv_selected >= 0 && (cl.ex_inventory->item_cnt[cl.ex_inventory->inv_order[cl.inv_selected]] == 0))
+
+	page_from = cl.ex_inventory;
+	int test3 = ((cl.inv_selected >= 0 ? (cl.inv_selected / 32) * 32 : ((cl.inv_selected - 32 + 1) / 32) * 32) / 32);
+	if (test3 > 0)
+	{
+		for (i = 0; i < test3; i++)
+		{
+			page_from = page_from->next;
+		}
+	}
+
+	page_to = cl.ex_inventory;
+	int test4 = ((page_from->inv_order[cl.inv_selected & 31] >= 0 ? (page_from->inv_order[cl.inv_selected & 31] / 32) * 32 : ((page_from->inv_order[cl.inv_selected & 31] - 32 + 1) / 32) * 32) / 32);
+	if (test4 > 0)
+	{
+		for (i = 0; i < test4; i++)
+		{
+			page_to = page_to->next;
+		}
+	}
+
+	if (cl.inv_selected >= 0 && (page_to->item_cnt[page_from->inv_order[cl.inv_selected & 31]] == 0))
 		ForceUpdate = true;
 
+
+	/*
+	while (page != NULL)
+	{
+		// removed items we no longer have from the order
+		for (counter = position = 0; counter < cl.inv_count; counter++)
+		{
+			if (page->item_cnt[page->inv_order[counter]] > 0)
+			{
+				page->inv_order[position] = page->inv_order[counter];
+				examined[page->inv_order[position]] = true;
+
+				position++;
+			}
+		}
+
+		page = page->next;
+	}
+	*/
+
+
+	// removed items we no longer have from the order
+	for (counter = position = 0; counter < cl.inv_count; counter++)
+	{
+
+		page_seq = cl.ex_inventory;
+		int test5 = ((counter >= 0 ? (counter / 32) * 32 : ((counter - 32 + 1) / 32) * 32) / 32);
+		if (test5 > 0)
+		{
+			for (i = 0; i < test5; i++)
+			{
+				page_seq = page_seq->next;
+			}
+		}
+
+		page_from = cl.ex_inventory;
+		int test1 = ((page_seq->inv_order[counter & 31] >= 0 ? (page_seq->inv_order[counter & 31] / 32) * 32 : ((page_seq->inv_order[counter & 31] - 32 + 1) / 32) * 32) / 32);
+		if (test1 > 0)
+		{
+			for (i = 0; i < test1; i++)
+			{
+				page_from = page_from->next;
+			}
+		}
+
+		page_to = cl.ex_inventory;
+		int test2 = ((position >= 0 ? (position / 32) * 32 : ((position - 32 + 1) / 32) * 32) / 32);
+		if (test2 > 0)
+		{
+			for (i = 0; i < test2; i++)
+			{
+				page_to = page_to->next;
+			}
+		}
+
+
+		if (page_from->item_cnt[page_from->inv_order[counter & 31]] > 0)
+		{
+			page_to->inv_order[position & 31] = page_from->inv_order[counter & 31];
+			examined[page_to->inv_order[position & 31]] = true;
+
+			position++;
+		}
+
+	}
+
+	/*
 	// removed items we no longer have from the order
 	for (counter = position = 0; counter < cl.inv_count; counter++)
 	{
@@ -1459,6 +1554,7 @@ void SB_InvChanged(void)
 			position++;
 		}
 	}
+	*/
 
 	// add in the new items
 	for (counter = 0; counter < MAX_INVENTORY_EX; counter++)
