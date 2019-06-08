@@ -1446,28 +1446,30 @@ static void ToggleDM_f(void)
 void SB_InvChanged(void)
 {
 	int		counter, position, i, j;
-	qboolean	examined[MAX_INVENTORY_EX];
-	qboolean	ForceUpdate = false;
+	int page_from_id, page_to_id, page_seq_id = 0;
 	ex_inventory_page_t *page_from, *page_to, *page_seq = cl.ex_inventory;
+	qboolean	examined[MAX_ITEMS_EX];
+	qboolean	ForceUpdate = false;
 
 	memset (examined, 0, sizeof(examined));
 
 
 	page_from = cl.ex_inventory;
-	int test3 = ((cl.inv_selected >= 0 ? (cl.inv_selected / 32) * 32 : ((cl.inv_selected - 32 + 1) / 32) * 32) / 32);
-	if (test3 > 0)
+	page_from_id = NearestMultiple(cl.inv_selected, MAX_INVENTORY_EX) / MAX_INVENTORY_EX;
+	if (page_from_id > 0)
 	{
-		for (i = 0; i < test3; i++)
+		for (i = 0; i < page_from_id; i++)
 		{
 			page_from = page_from->next;
 		}
 	}
 
 	page_to = cl.ex_inventory;
-	int test4 = ((page_from->inv_order[cl.inv_selected & 31] >= 0 ? (page_from->inv_order[cl.inv_selected & 31] / 32) * 32 : ((page_from->inv_order[cl.inv_selected & 31] - 32 + 1) / 32) * 32) / 32);
-	if (test4 > 0)
+	page_to_id = NearestMultiple(page_from->inv_order[cl.inv_selected & 31], MAX_INVENTORY_EX) / MAX_INVENTORY_EX;
+
+	if (page_to_id > 0)
 	{
-		for (i = 0; i < test4; i++)
+		for (i = 0; i < page_to_id; i++)
 		{
 			page_to = page_to->next;
 		}
@@ -1501,41 +1503,53 @@ void SB_InvChanged(void)
 	for (counter = position = 0; counter < cl.inv_count; counter++)
 	{
 
-		page_seq = cl.ex_inventory;
-		int test5 = ((counter >= 0 ? (counter / 32) * 32 : ((counter - 32 + 1) / 32) * 32) / 32);
-		if (test5 > 0)
+		j = NearestMultiple(counter, MAX_INVENTORY_EX) / MAX_INVENTORY_EX;
+		if (j != page_seq_id)
 		{
-			for (i = 0; i < test5; i++)
+			page_seq_id = j;
+			page_seq = cl.ex_inventory;
+			if (page_seq_id > 0)
 			{
-				page_seq = page_seq->next;
+				for (i = 0; i < page_seq_id; i++)
+				{
+					page_seq = page_seq->next;
+				}
 			}
 		}
 
-		page_from = cl.ex_inventory;
-		int test1 = ((page_seq->inv_order[counter & 31] >= 0 ? (page_seq->inv_order[counter & 31] / 32) * 32 : ((page_seq->inv_order[counter & 31] - 32 + 1) / 32) * 32) / 32);
-		if (test1 > 0)
+		j = NearestMultiple(page_seq->inv_order[counter & 31], MAX_INVENTORY_EX) / MAX_INVENTORY_EX;
+		if (j != page_from_id)
 		{
-			for (i = 0; i < test1; i++)
+			page_from_id = j;
+			page_from = cl.ex_inventory;
+			if (page_from_id > 0)
 			{
-				page_from = page_from->next;
+				for (i = 0; i < page_from_id; i++)
+				{
+					page_from = page_from->next;
+				}
 			}
 		}
 
-		page_to = cl.ex_inventory;
-		int test2 = ((position >= 0 ? (position / 32) * 32 : ((position - 32 + 1) / 32) * 32) / 32);
-		if (test2 > 0)
+		j = NearestMultiple(position, MAX_INVENTORY_EX) / MAX_INVENTORY_EX;
+		if (j != page_to_id)
 		{
-			for (i = 0; i < test2; i++)
+			page_to_id = j;
+			page_to = cl.ex_inventory;
+			if (page_to_id > 0)
 			{
-				page_to = page_to->next;
+				for (i = 0; i < page_to_id; i++)
+				{
+					page_to = page_to->next;
+				}
 			}
 		}
 
 
-		if (page_from->item_cnt[page_from->inv_order[counter & 31]] > 0)
+		if (page_seq->item_cnt[page_from->inv_order[counter & 31]] > 0)
 		{
-			page_to->inv_order[position & 31] = page_from->inv_order[counter & 31];
-			examined[page_to->inv_order[position & 31]] = true;
+			page_to->inv_order[position & 31] = page_from->inv_order[counter];
+			examined[page_to->inv_order[position]] = true;
 
 			position++;
 		}
@@ -1556,6 +1570,7 @@ void SB_InvChanged(void)
 	}
 	*/
 
+	/*
 	// add in the new items
 	for (counter = 0; counter < MAX_INVENTORY_EX; counter++)
 	{
@@ -1565,6 +1580,67 @@ void SB_InvChanged(void)
 			{
 				cl.ex_inventory->inv_order[position] = counter;
 				position++;
+			}
+		}
+	}
+	*/
+
+
+	// add in the new items
+	for (counter = 0; counter < cl.num_ex_items; counter++)
+	{
+		j = NearestMultiple(counter, MAX_INVENTORY_EX) / MAX_INVENTORY_EX;
+		if (j != page_seq_id)
+		{
+			page_seq_id = j;
+			page_seq = cl.ex_inventory;
+			if (page_seq_id > 0)
+			{
+				for (i = 0; i < page_seq_id; i++)
+				{
+					page_seq = page_seq->next;
+				}
+			}
+		}
+
+		if (page_seq != NULL)
+		{
+			j = NearestMultiple(page_seq->inv_order[counter & 31], MAX_INVENTORY_EX) / MAX_INVENTORY_EX;
+			if (j != page_from_id)
+			{
+				page_from_id = j;
+				page_from = cl.ex_inventory;
+				if (page_from_id > 0)
+				{
+					for (i = 0; i < page_from_id; i++)
+					{
+						page_from = page_from->next;
+					}
+				}
+			}
+
+			j = NearestMultiple(position, MAX_INVENTORY_EX) / MAX_INVENTORY_EX;
+			if (j != page_to_id)
+			{
+				page_to_id = j;
+				page_to = cl.ex_inventory;
+				if (page_to_id > 0)
+				{
+					for (i = 0; i < page_to_id; i++)
+					{
+						page_to = page_to->next;
+					}
+				}
+			}
+
+
+			if (!examined[counter])
+			{
+				if (page_from->item_cnt[counter & 31] > 0)
+				{
+					page_to->inv_order[position & 31] = counter;
+					position++;
+				}
 			}
 		}
 	}

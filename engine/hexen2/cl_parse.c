@@ -1694,7 +1694,7 @@ void CL_ParseServerMessage (void)
 			break;
 
 		case svc_update_inv:
-			sc1 = sc2 = sc3 = 0;
+			sc1 = sc2 = 0;
 
 			test = MSG_ReadByte();
 			if (test & 1)
@@ -1838,36 +1838,61 @@ void CL_ParseServerMessage (void)
 			// extended inventory
 			if (sv_protocol == PROTOCOL_UH2_114)
 			{
-				test = MSG_ReadByte();
-				if (test & 1)
-					sc3 |= ((int)MSG_ReadByte());
-				if (test & 2)
-					sc3 |= ((int)MSG_ReadByte()) << 8;
-				if (test & 4)
-					sc3 |= ((int)MSG_ReadByte()) << 16;
-				if (test & 8)
-					sc3 |= ((int)MSG_ReadByte()) << 24;
-				//if (test & 16)
-				//	host_client->ex_inventory->next; //shan page?
+				ex_inventory_page_t *page = cl.ex_inventory;
+				qboolean bContinue = true;
 
-
-				if (sc3)
+				while((bContinue) && (page != NULL))
 				{
-					for (i = 0; i < 32; i++)
+					sc3 = 0;
+					test = MSG_ReadByte();
+					if (test & 1)
+						sc3 |= ((int)MSG_ReadByte());
+					if (test & 2)
+						sc3 |= ((int)MSG_ReadByte()) << 8;
+					if (test & 4)
+						sc3 |= ((int)MSG_ReadByte()) << 16;
+					if (test & 8)
+						sc3 |= ((int)MSG_ReadByte()) << 24;
+					if (test & 16)
+						bContinue = true; //host_client->ex_inventory->next; //shan page?
+					else
+						bContinue = false;
+
+
+					if (sc3)
 					{
-						if (sc3 & (1 << i))
+						for (i = 0; i < MAX_INVENTORY_EX; i++)
 						{
-							cl.ex_inventory->item_cnt[i] = MSG_ReadByte();
-							if (cl.ex_inventory->item_cnt[i] & 128)
+							if (sc3 & (1 << i))
 							{
-								cl.ex_inventory->item_id[i] = MSG_ReadByte();
-								cl.ex_inventory->item_cnt[i] &= 127;
-								//cl.ex_inventory->new_items |= (1 << i); //shan sbar notification?
+								page->item_cnt[i] = MSG_ReadByte();
+								if (page->item_cnt[i] & 128)
+								{
+									page->item_id[i] = MSG_ReadByte();
+									page->item_cnt[i] &= 127;
+									//page->new_items |= (1 << i); //shan sbar notification?
+								}
 							}
+						}
+
+						//cl.ex_inventory->changed_items = sc3; //shan sbar notification?
+					}
+
+					if (bContinue)
+					{
+						if (page->next == NULL)
+						{
+							//find first empty inventory page
+							for (j = 0; ((j < MAX_INVENTORY_EX_PAGES) && (cl.ex_inventory[j].id != 0)); j++);
+							if (j < MAX_INVENTORY_EX_PAGES)
+								page->next = &cl.ex_inventory[j];
 						}
 					}
 
-					//cl.ex_inventory->changed_items = sc3; //shan sbar notification?
+					if (page->id == 0)
+						page->id = ++cl.next_page_id;
+
+					page = page->next;
 				}
 			}
 

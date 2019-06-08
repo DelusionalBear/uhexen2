@@ -210,9 +210,10 @@ typedef struct
 //
 	struct qmodel_s	*model_precache[MAX_MODELS];
 	struct sfx_s	*sound_precache[MAX_SOUNDS];
-	struct ex_inventory_page_s ex_inventory[1]; //ex_inventory_page_t *ex_inventory; 	// [cl.maxclients * (MAX_ITEMS_EX / 32)]
+	struct ex_inventory_page_s ex_inventory[MAX_INVENTORY_EX_PAGES]; //ex_inventory_page_t *ex_inventory; 	// [cl.maxclients * (MAX_ITEMS_EX / 32)]
 	ex_item_t	*ex_items; // [MAX_ITEMS_EX or current count?]
 	int num_ex_items;
+	int next_page_id;
 
 	char		mapname[40];
 	char		levelname[40];		// for display on solo scoreboard

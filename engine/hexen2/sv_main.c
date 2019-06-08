@@ -434,7 +434,7 @@ SV_UpdateExInventory
 int INV_UpdateExItem(ex_inventory_page_t *startPage, int inv_id, int inv_cnt, qboolean inc)
 {
 	qboolean bFound = false;
-	int i, result;
+	int i, j, result;
 	ex_inventory_page_t *page = startPage;
 
 	result = 0;
@@ -491,7 +491,23 @@ int INV_UpdateExItem(ex_inventory_page_t *startPage, int inv_id, int inv_cnt, qb
 				}
 
 				if (!bFound)
-					page = page->next;
+				{
+					if (page->next == NULL)
+					{
+
+						//find matching or first empty inventory page
+						for (j = 0; ((j < (svs.maxclients * MAX_INVENTORY_EX_PAGES)) && (sv.ex_inventory_pages[j].id != 0) && (sv.ex_inventory_pages[j].client_id != i)); j++);
+						if (j < svs.maxclients * MAX_INVENTORY_EX_PAGES)
+						{
+							page->next = &sv.ex_inventory_pages[j];
+							if (page->next->id == 0)
+								page->next->id = ++sv.next_page_id;
+						}
+						//page = startPage; //shan find blank page?  with no associated client?
+					}
+					else
+						page = page->next;
+				}
 				else
 					break;
 			}
@@ -1700,49 +1716,58 @@ ex_inv:
 // extended inventory
 	if (sv_protocol == PROTOCOL_UH2_114)
 	{
-		sc3 = host_client->ex_inventory->changed_items;
-		sc4 = host_client->ex_inventory->new_items;
+		//shan page loop here
+		ex_inventory_page_t *page = host_client->ex_inventory;
 
-		test = 0;
-		if (sc3 & 0x000000ff)
-			test |= 1;
-		if (sc3 & 0x0000ff00)
-			test |= 2;
-		if (sc3 & 0x00ff0000)
-			test |= 4;
-		if (sc3 & 0xff000000)
-			test |= 8;
-		if (host_client->ex_inventory->next != NULL)
-			test |= 16;
-
-		MSG_WriteByte(&host_client->message, test);
-
-		if (test)
+		while (page != NULL)
 		{
-			if (test & 1)
-				MSG_WriteByte(&host_client->message, sc3 & 0xff);
-			if (test & 2)
-				MSG_WriteByte(&host_client->message, (sc3 >> 8) & 0xff);
-			if (test & 4)
-				MSG_WriteByte(&host_client->message, (sc3 >> 16) & 0xff);
-			if (test & 8)
-				MSG_WriteByte(&host_client->message, (sc3 >> 24) & 0xff);
+			sc3 = page->changed_items;
+			sc4 = page->new_items;
 
-			for (i = 0; i < 32; i++)
+			test = 0;
+			if (sc3 & 0x000000ff)
+				test |= 1;
+			if (sc3 & 0x0000ff00)
+				test |= 2;
+			if (sc3 & 0x00ff0000)
+				test |= 4;
+			if (sc3 & 0xff000000)
+				test |= 8;
+			if (page->next != NULL)
+				test |= 16;
+
+			MSG_WriteByte(&host_client->message, test);
+
+			if (test)
 			{
-				if (sc3 & (1 << i))
+				if (test & 1)
+					MSG_WriteByte(&host_client->message, sc3 & 0xff);
+				if (test & 2)
+					MSG_WriteByte(&host_client->message, (sc3 >> 8) & 0xff);
+				if (test & 4)
+					MSG_WriteByte(&host_client->message, (sc3 >> 16) & 0xff);
+				if (test & 8)
+					MSG_WriteByte(&host_client->message, (sc3 >> 24) & 0xff);
+
+				for (i = 0; i < MAX_INVENTORY_EX; i++)
 				{
-					MSG_WriteByte(&host_client->message, (host_client->ex_inventory->item_cnt[i] + (((sc4 & (1 << i)) > 0)) * 128));
-					if (sc4 & (1 << i))
+					if (sc3 & (1 << i))
 					{
-						MSG_WriteByte(&host_client->message, (host_client->ex_inventory->item_id[i]));
+						MSG_WriteByte(&host_client->message, (page->item_cnt[i] + (((sc4 & (1 << i)) != 0)) * 128));
+						if (sc4 & (1 << i))
+						{
+							MSG_WriteByte(&host_client->message, (page->item_id[i]));
+						}
 					}
 				}
+
+				page->changed_items = 0;
+				page->new_items = 0;
 			}
 
-			host_client->ex_inventory->changed_items = 0;
-			host_client->ex_inventory->new_items = 0;
+			page = page->next;
 		}
+
 	}
 
 	
@@ -2365,7 +2390,7 @@ void SV_SpawnServer (const char *server, const char *startspot)
 
 	if (sv.ex_inventory_pages == NULL)
 	{
-		sv.ex_inventory_pages = (ex_inventory_page_t *)Hunk_AllocName(svs.maxclients * sizeof(ex_inventory_page_t), "ex_pages");
+		sv.ex_inventory_pages = (ex_inventory_page_t *)Hunk_AllocName((svs.maxclients * MAX_INVENTORY_EX_PAGES) * sizeof(ex_inventory_page_t), "ex_pages");
 	}
 
 //
