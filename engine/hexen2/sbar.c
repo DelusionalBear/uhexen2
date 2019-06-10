@@ -1184,30 +1184,64 @@ void Inv_Update(qboolean force)
 //
 //==========================================================================
 
-static void DrawBarArtifactIcon(int x, int y, int artifact)
+static void DrawBarArtifactIcon(int x, int y, int position)
 {
 	int	count, j, i;
-	ex_inventory_page_t *page = cl.ex_inventory;
+	ex_inventory_page_t *page_seq, *page_from;
 
-	if (artifact < 0 || artifact >= MAX_ITEMS_EX)
+	if (position < 0 || position >= MAX_ITEMS_EX)
 		return;
 
-	while (page != NULL)
+
+	j = NearestMultiple(position, MAX_INVENTORY_EX) / MAX_INVENTORY_EX;
+	page_seq = cl.ex_inventory;
+	if (j > 0)
+	{
+		for (i = 0; i < j; i++)
+		{
+			page_seq = page_seq->next;
+		}
+	}
+
+	j = NearestMultiple(page_seq->inv_order[position & 31], MAX_INVENTORY_EX) / MAX_INVENTORY_EX;
+	page_from = cl.ex_inventory;
+	if (j > 0)
+	{
+		for (i = 0; i < j; i++)
+		{
+			page_from = page_from->next;
+		}
+	}
+
+	for (i = 0; i < cl.num_ex_items; i++)
+	{
+		if (cl.ex_items[i].id == page_from->item_id[position & 31])
+		{
+			Sbar_DrawTransPic(x, y, Draw_CachePic(cl.ex_items[i].icon));
+			DrawBarArtifactNumber(x + 20, y + 21, page_from->item_cnt[i]);
+			break;
+		}
+	}
+
+	/*
+	while (page_from != NULL)
 	{
 		for (i = 0; i < MAX_INVENTORY_EX; i++)
 		{
-			j = (page->inv_order[artifact & 31]);
-			if (cl.ex_items[j].id == page->item_id[j])
+			//shan page_from
+			j = (page_from->inv_order[position & 31]);
+			if (cl.ex_items[j].id == page_from->item_id[j])
 			{
-				Sbar_DrawTransPic(x, y, Draw_CachePic(cl.ex_items[artifact].icon));
-				DrawBarArtifactNumber(x + 20, y + 21, page->item_cnt[j]);
+				Sbar_DrawTransPic(x, y, Draw_CachePic(cl.ex_items[position].icon));
+				DrawBarArtifactNumber(x + 20, y + 21, page_from->item_cnt[j]);
 				break;
 			}
 
 		}
 
-		page = page->next;
+		page_from = page_from->next;
 	}
+	*/
 }
 
 //==========================================================================
@@ -1587,6 +1621,7 @@ void SB_InvChanged(void)
 
 
 	// add in the new items
+	page_from_id, page_to_id, page_seq_id = 0;
 	for (counter = 0; counter < cl.num_ex_items; counter++)
 	{
 		j = NearestMultiple(counter, MAX_INVENTORY_EX) / MAX_INVENTORY_EX;
