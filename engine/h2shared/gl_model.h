@@ -84,7 +84,6 @@ typedef struct texture_s
 	unsigned int	width, height;
 	GLuint			gl_texturenum;
 	struct gltexture_s	*gltexture; //johnfitz -- pointer to gltexture
-	//struct msurface_s	*texturechain;	// for gl_texsort drawing
 	struct msurface_s	*texturechains[2];	// for texture chains
 	int		anim_total;		// total tenths in sequence ( 0 = no)
 	int		anim_min, anim_max;	// time for this frame min <=time< max

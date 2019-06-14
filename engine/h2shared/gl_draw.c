@@ -25,6 +25,21 @@
 
 #include "quakedef.h"
 
+qpic_t             *pic_nul; //johnfitz -- for missing gfx, don't crash
+
+typedef struct
+{
+	gltexture_t *gltexture;
+	float		sl, tl, sh, th;
+} glpic_t;
+
+typedef struct cachepic_s
+{
+	char		name[MAX_QPATH];
+	qpic_t		pic;
+	byte		padding[32];	/* for appended glpic */
+} cachepic_t;
+
 #if ENDIAN_RUNTIME_DETECT
 /* initialized by VID_Init() */
 unsigned int	MASK_r;
@@ -52,6 +67,19 @@ static GLuint		char_texture;
 static GLuint		cs_texture;	// crosshair texture
 static GLuint		char_smalltexture;
 static GLuint		char_menufonttexture;
+
+byte pic_nul_data[8][8] =
+{
+	{252,252,252,252,  0,  0,  0,  0},
+	{252,252,252,252,  0,  0,  0,  0},
+	{252,252,252,252,  0,  0,  0,  0},
+	{252,252,252,252,  0,  0,  0,  0},
+	{  0,  0,  0,  0,252,252,252,252},
+	{  0,  0,  0,  0,252,252,252,252},
+	{  0,  0,  0,  0,252,252,252,252},
+	{  0,  0,  0,  0,252,252,252,252},
+};
+
 
 // Crosshair texture is a 32x32 alpha map with 8 levels of alpha.
 // The format is similar to an X11 pixmap, but not the same.
@@ -141,27 +169,41 @@ qpic_t *Draw_PicFromFile (const char *name)
 
 	gl.texnum = GL_LoadPicTexture (p);
 	gl.sl = 0;
-	gl.sh = 1;
+	gl.sh = (float)dat->width / (float)TexMgr_PadConditional(dat->width); //johnfitz
 	gl.tl = 0;
-	gl.th = 1;
+	gl.th = (float)dat->height / (float)TexMgr_PadConditional(dat->height); //johnfitz
 	memcpy (p->data, &gl, sizeof(glpic_t));
 
 	return p;
 }
 
-qpic_t *Draw_PicFromWad (const char *name)
+/*
+================
+Draw_PicFromWad
+================
+*/
+qpic_t *Draw_PicFromWad(const char *name)
 {
 	qpic_t	*p;
 	glpic_t	gl;
+	src_offset_t offset; //johnfitz
 
-	p = (qpic_t *) W_GetLumpName (name);
+	p = (qpic_t *)W_GetLumpName(name);
+	if (!p) return pic_nul; //johnfitz
 
-	gl.texnum = GL_LoadPicTexture (p);
+	char texturename[64]; //johnfitz
+	q_snprintf(texturename, sizeof(texturename), "%s:%s", WADFILENAME, name); //johnfitz
+
+	offset = (src_offset_t)p - (src_offset_t)wad_base + sizeof(int) * 2; //johnfitz
+
+	gl.gltexture = TexMgr_LoadImage(NULL, texturename, p->width, p->height, SRC_INDEXED, p->data, WADFILENAME,
+		offset, TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP); //johnfitz -- TexMgr
 	gl.sl = 0;
-	gl.sh = 1;
+	gl.sh = (float)p->width / (float)TexMgr_PadConditional(p->width); //johnfitz
 	gl.tl = 0;
-	gl.th = 1;
-	memcpy (p->data, &gl, sizeof(glpic_t));
+	gl.th = (float)p->height / (float)TexMgr_PadConditional(p->height); //johnfitz
+
+	memcpy(p->data, &gl, sizeof(glpic_t));
 
 	return p;
 }
@@ -219,11 +261,13 @@ qpic_t	*Draw_CachePic (const char *path)
 	pic->pic.width = dat->width;
 	pic->pic.height = dat->height;
 
-	gl.texnum = GL_LoadPicTexture (dat);
+	gl.gltexture = TexMgr_LoadImage(NULL, path, dat->width, dat->height, SRC_INDEXED, dat->data, path,
+		sizeof(int) * 2, TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP); //johnfitz -- TexMgr
+
 	gl.sl = 0;
-	gl.sh = 1;
+	gl.sh = (float)dat->width / (float)TexMgr_PadConditional(dat->width); //johnfitz
 	gl.tl = 0;
-	gl.th = 1;
+	gl.th = (float)dat->height / (float)TexMgr_PadConditional(dat->height); //johnfitz
 	memcpy (pic->pic.data, &gl, sizeof(glpic_t));
 
 	return &pic->pic;
@@ -270,16 +314,44 @@ qpic_t	*Draw_CacheLoadingPic (void)
 	pic->pic.width = dat->width;
 	pic->pic.height = dat->height;
 
-	gl.texnum = GL_LoadPicTexture (dat);
+	gl.gltexture = TexMgr_LoadImage(NULL, ls_path, dat->width, dat->height, SRC_INDEXED, dat->data, ls_path,
+		sizeof(int) * 2, TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP); //johnfitz -- TexMgr
 	gl.sl = 0;
-	gl.sh = 1;
+	gl.sh = (float)dat->width / (float)TexMgr_PadConditional(dat->width); //johnfitz
 	gl.tl = 0;
-	gl.th = 1;
+	gl.th = (float)dat->height / (float)TexMgr_PadConditional(dat->height); //johnfitz
 	memcpy (pic->pic.data, &gl, sizeof(glpic_t));
 
 	return &pic->pic;
 }
 #endif	/* !DRAW_PROGRESSBARS */
+
+
+/*
+================
+Draw_MakePic -- johnfitz -- generate pics from internal data
+================
+*/
+qpic_t *Draw_MakePic(const char *name, int width, int height, byte *data)
+{
+	int flags = TEXPREF_NEAREST | TEXPREF_ALPHA | TEXPREF_PERSIST | TEXPREF_NOPICMIP | TEXPREF_PAD;
+	qpic_t		*pic;
+	glpic_t		gl;
+
+	pic = (qpic_t *)Hunk_Alloc(sizeof(qpic_t) - 4 + sizeof(glpic_t));
+	pic->width = width;
+	pic->height = height;
+
+	gl.gltexture = TexMgr_LoadImage(NULL, name, width, height, SRC_INDEXED, data, "", (src_offset_t)data, flags);
+	gl.sl = 0;
+	gl.sh = (float)width / (float)TexMgr_PadConditional(width);
+	gl.tl = 0;
+	gl.th = (float)height / (float)TexMgr_PadConditional(height);
+	memcpy(pic->data, &gl, sizeof(glpic_t));
+
+	return pic;
+}
+
 
 /*
 ===============
@@ -541,8 +613,11 @@ void Draw_Init (void)
 	// load the crosshair texture
 	cs_texture = GL_LoadPixmap ("crosshair", cs_data);
 
+	pic_nul = Draw_MakePic("nul", 8, 8, &pic_nul_data[0][0]);
+
 	// initialize the player texnums for multiplayer config screens
 	glGenTextures_fp(MAX_PLAYER_CLASS, menuplyr_textures);
+
 }
 
 
@@ -779,7 +854,7 @@ void Draw_Pic (int x, int y, qpic_t *pic)
 
 	gl = (glpic_t *)pic->data;
 	glColor4f_fp (1,1,1,1);
-	GL_Bind (gl->texnum);
+	GL_Bind(gl->gltexture);
 
 	glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 	glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
@@ -813,7 +888,7 @@ void Draw_AlphaPic (int x, int y, qpic_t *pic, float alpha)
 	glEnable_fp (GL_BLEND);
 	glCullFace_fp(GL_FRONT);
 	glColor4f_fp (1,1,1,alpha);
-	GL_Bind (gl->texnum);
+	GL_Bind(gl->gltexture);
 	glBegin_fp (GL_QUADS);
 	glTexCoord2f_fp (gl->sl, gl->tl);
 	glVertex2f_fp (x, y);
@@ -872,12 +947,13 @@ qpic_t *Draw_CachePicNoTrans (const char *path)
 		if (dat->data[i] == 255)
 			dat->data[i] = 31; // pal(31) == pal(255) == FCFCFC (white)
 	}
-	gl.texnum = GL_LoadPicTexture (dat);
+	gl.gltexture = TexMgr_LoadImage(NULL, path, dat->width, dat->height, SRC_INDEXED, dat->data, path,
+		sizeof(int) * 2, TEXPREF_ALPHA | TEXPREF_PAD | TEXPREF_NOPICMIP); //johnfitz -- TexMgr
 
 	gl.sl = 0;
-	gl.sh = 1;
+	gl.sh = (float)dat->width / (float)TexMgr_PadConditional(dat->width); //johnfitz
 	gl.tl = 0;
-	gl.th = 1;
+	gl.th = (float)dat->height / (float)TexMgr_PadConditional(dat->height); //johnfitz
 	memcpy (pic->pic.data, &gl, sizeof(glpic_t));
 
 	return &pic->pic;
@@ -896,7 +972,7 @@ void Draw_IntermissionPic (qpic_t *pic)
 
 	gl = (glpic_t *)pic->data;
 	glColor4f_fp (1,1,1,1);
-	GL_Bind (gl->texnum);
+	GL_Bind(gl->gltexture);
 
 	glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 	glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
@@ -936,7 +1012,7 @@ void Draw_SubPic (int x, int y, qpic_t *pic, int srcx, int srcy, int width, int 
 	newth = newtl + (height*oldglheight)/pic->height;
 
 	glColor4f_fp (1,1,1,1);
-	GL_Bind (gl->texnum);
+	GL_Bind(gl->gltexture);
 	glBegin_fp (GL_QUADS);
 	glTexCoord2f_fp (newsl, newtl);
 	glVertex2f_fp (x, y);
@@ -989,7 +1065,7 @@ void Draw_PicCropped (int x, int y, qpic_t *pic)
 	}
 
 	glColor4f_fp (1,1,1,1);
-	GL_Bind (gl->texnum);
+	GL_Bind(gl->gltexture);
 	glBegin_fp (GL_QUADS);
 	glTexCoord2f_fp (gl->sl, tl);
 	glVertex2f_fp (x, y);
@@ -1047,7 +1123,7 @@ void Draw_SubPicCropped (int x, int y, int h, qpic_t *pic)
 	}
 
 	glColor4f_fp (1,1,1,1);
-	GL_Bind (gl->texnum);
+	GL_Bind(gl->gltexture);
 	glBegin_fp (GL_QUADS);
 	glTexCoord2f_fp (gl->sl, tl);
 	glVertex2f_fp (x, y);

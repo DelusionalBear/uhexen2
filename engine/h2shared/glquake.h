@@ -112,20 +112,6 @@ extern unsigned int	SHIFT_a;
    TYPES
    ================================================================== */
 
-/* texture types */
-typedef struct
-{
-	GLuint		texnum;
-	float	sl, tl, sh, th;
-} glpic_t;
-
-typedef struct cachepic_s
-{
-	char		name[MAX_QPATH];
-	qpic_t		pic;
-	byte		padding[32];	/* for appended glpic */
-} cachepic_t;
-
 /*
 typedef struct
 {
