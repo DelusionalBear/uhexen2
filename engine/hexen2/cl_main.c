@@ -48,6 +48,7 @@ cvar_t	m_yaw = {"m_yaw", "0.022", CVAR_ARCHIVE};
 cvar_t	m_forward = {"m_forward", "1", CVAR_ARCHIVE};
 cvar_t	m_side = {"m_side", "0.8", CVAR_ARCHIVE};
 
+extern cvar_t      r_lerpmodels, r_lerpmove; //johnfitz
 
 client_static_t	cls;
 client_state_t	cl;

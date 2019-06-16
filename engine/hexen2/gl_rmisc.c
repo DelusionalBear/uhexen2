@@ -37,7 +37,9 @@ const int	color_offsets[MAX_PLAYER_CLASS] =
 #endif
 };
 
+extern cvar_t r_lerpmodels;
 extern cvar_t gl_overbright;
+extern cvar_t gl_overbright_models;
 cvar_t			gl_purge_maptex = {"gl_purge_maptex", "1", CVAR_ARCHIVE};
 				// whether or not map-specific OGL textures
 				// are purged on map change. default == yes
@@ -240,6 +242,8 @@ void R_Init (void)
 	Cvar_RegisterVariable (&gl_coloredlight);
 	Cvar_RegisterVariable (&gl_colored_dynamic_lights);
 	Cvar_RegisterVariable (&gl_extra_dynamic_lights);
+
+	Cvar_RegisterVariable(&r_lerpmodels);
 
 	R_InitBubble();
 

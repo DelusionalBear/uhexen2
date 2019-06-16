@@ -129,6 +129,39 @@ typedef struct
 	int	minimize, maximize;
 } glmode_t;
 */
+/* texture filters */
+typedef struct
+{
+	int	magfilter;
+	int minfilter;
+	char *name;
+} glmode_t;
+glmode_t modes[] = {
+	{GL_NEAREST, GL_NEAREST,				"GL_NEAREST"},
+	{GL_NEAREST, GL_NEAREST_MIPMAP_NEAREST,	"GL_NEAREST_MIPMAP_NEAREST"},
+	{GL_NEAREST, GL_NEAREST_MIPMAP_LINEAR,	"GL_NEAREST_MIPMAP_LINEAR"},
+	{GL_LINEAR,  GL_LINEAR,					"GL_LINEAR"},
+	{GL_LINEAR,  GL_LINEAR_MIPMAP_NEAREST,	"GL_LINEAR_MIPMAP_NEAREST"},
+	{GL_LINEAR,  GL_LINEAR_MIPMAP_LINEAR,	"GL_LINEAR_MIPMAP_LINEAR"},
+};
+
+typedef struct cachepic_s
+{
+	char		name[MAX_QPATH];
+	qpic_t		pic;
+	byte		padding[32];	/* for appended glpic */
+} cachepic_t;
+
+typedef struct
+{
+	gltexture_t *gltexture;
+	float		sl, tl, sh, th;
+} glpic_t;
+
+extern int rs_brushpolys, rs_aliaspolys, rs_skypolys, rs_particles, rs_fogpolys;
+extern    qboolean        mtexenabled;
+extern int rs_dynamiclightmaps, rs_brushpasses, rs_aliaspasses, rs_skypasses;
+extern    entity_t        *currententity;
 
 /* particle enums and types: note that hexen2 and
    hexenworld versions of these are different!! */
@@ -312,7 +345,7 @@ void GL_SubdivideSurface (msurface_t *fa);
 void EmitWaterPolys (msurface_t *fa);
 void EmitBothSkyLayers (msurface_t *fa);
 void R_DrawSkyChain (msurface_t *s);
-void R_DrawWaterSurfaces (void);
+//void R_DrawWaterSurfaces (void);
 
 void R_RenderDlights (void);
 void R_MarkLights (dlight_t *light, int bit, mnode_t *node);

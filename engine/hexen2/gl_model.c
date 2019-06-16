@@ -379,149 +379,205 @@ static byte	*mod_base;
 Mod_LoadTextures
 =================
 */
-static void Mod_LoadTextures (lump_t *l)
+void Mod_LoadTextures(lump_t *l)
 {
 	int		i, j, pixels, num, maxanim, altmax;
 	miptex_t	*mt;
 	texture_t	*tx, *tx2;
 	texture_t	*anims[10];
 	texture_t	*altanims[10];
-	dmiptexlump_t *m;
-#ifdef WAL_TEXTURES
-	// external WAL texture loading
-	char		texname[MAX_QPATH];
-	int		mark;
-	miptex_wal_t	*mt_wal;
-#endif
+	dmiptexlump_t	*m;
+	//johnfitz -- more variables
+	char		texturename[64];
+	int			nummiptex;
+	src_offset_t		offset;
+	int			mark, fwidth, fheight;
+	char		filename[MAX_OSPATH], filename2[MAX_OSPATH], mapname[MAX_OSPATH];
+	byte		*data;
+	extern byte *hunk_base;
+	//johnfitz
 
+		//johnfitz -- don't return early if no textures; still need to create dummy texture
 	if (!l->filelen)
 	{
-		loadmodel->textures = NULL;
-		return;
+		Con_Printf("Mod_LoadTextures: no textures in bsp file\n");
+		nummiptex = 0;
+		m = NULL; // avoid bogus compiler warning
 	}
-	m = (dmiptexlump_t *)(mod_base + l->fileofs);
+	else
+	{
+		m = (dmiptexlump_t *)(mod_base + l->fileofs);
+		m->nummiptex = LittleLong(m->nummiptex);
+		nummiptex = m->nummiptex;
+	}
+	//johnfitz
 
-	m->nummiptex = LittleLong (m->nummiptex);
+	loadmodel->numtextures = nummiptex + 2; //johnfitz -- need 2 dummy texture chains for missing textures
+	loadmodel->textures = (texture_t **)Hunk_AllocName(loadmodel->numtextures * sizeof(*loadmodel->textures), loadname);
 
-	loadmodel->numtextures = m->nummiptex;
-	loadmodel->textures = (texture_t **) Hunk_AllocName (m->nummiptex * sizeof(*loadmodel->textures), "texture");
-
-	for (i = 0; i < m->nummiptex; i++)
+	for (i = 0; i < nummiptex; i++)
 	{
 		m->dataofs[i] = LittleLong(m->dataofs[i]);
 		if (m->dataofs[i] == -1)
 			continue;
 		mt = (miptex_t *)((byte *)m + m->dataofs[i]);
-		mt->width = LittleLong (mt->width);
-		mt->height = LittleLong (mt->height);
+		mt->width = LittleLong(mt->width);
+		mt->height = LittleLong(mt->height);
 		for (j = 0; j < MIPLEVELS; j++)
-			mt->offsets[j] = LittleLong (mt->offsets[j]);
+			mt->offsets[j] = LittleLong(mt->offsets[j]);
 
-#ifdef WAL_TEXTURES
-		if (!r_texture_external.integer)
-			goto bsp_tex_internal;
-		// try an external wal texture file first
-		q_snprintf (texname, sizeof(texname), "textures/%s.wal", mt->name);
-		if (texname[sizeof(WAL_EXT_DIRNAME)] == '*')
-			texname[sizeof(WAL_EXT_DIRNAME)] = WAL_REPLACE_ASTERIX;
-		mark = Hunk_LowMark ();
-		mt_wal = (miptex_wal_t *)FS_LoadHunkFile(texname, NULL);
-		if (mt_wal != NULL)
+		if ((mt->width & 15) || (mt->height & 15))
+			Sys_Error("Texture %s is not 16 aligned", mt->name);
+		pixels = mt->width*mt->height / 64 * 85;
+		tx = (texture_t *)Hunk_AllocName(sizeof(texture_t) + pixels, loadname);
+		loadmodel->textures[i] = tx;
+
+		memcpy(tx->name, mt->name, sizeof(tx->name));
+		tx->width = mt->width;
+		tx->height = mt->height;
+		for (j = 0; j < MIPLEVELS; j++)
+			tx->offsets[j] = mt->offsets[j] + sizeof(texture_t) - sizeof(miptex_t);
+		// the pixels immediately follow the structures
+
+		// ericw -- check for pixels extending past the end of the lump.
+		// appears in the wild; e.g. jam2_tronyn.bsp (func_mapjam2),
+		// kellbase1.bsp (quoth), and can lead to a segfault if we read past
+		// the end of the .bsp file buffer
+		if (((byte*)(mt + 1) + pixels) > (mod_base + l->fileofs + l->filelen))
 		{
-			mt_wal->ident = LittleLong (mt_wal->ident);
-			mt_wal->version = LittleLong (mt_wal->version);
-			if (mt_wal->ident == IDWALHEADER && mt_wal->version == WALVERSION)
+			Con_DPrintf("Texture %s extends past end of lump\n", mt->name);
+			pixels = q_max(0, (mod_base + l->fileofs + l->filelen) - (byte*)(mt + 1));
+		}
+		memcpy(tx + 1, mt + 1, pixels);
+
+		tx->update_warp = false; //johnfitz
+		tx->warpimage = NULL; //johnfitz
+		tx->fullbright = NULL; //johnfitz
+
+		//johnfitz -- lots of changes
+		if (!isDedicated) //no texture uploading for dedicated server
+		{
+			if (!q_strncasecmp(tx->name, "sky", 3)) //sky texture //also note -- was Q_strncmp, changed to match qbsp
+				Sky_LoadTexture(tx);
+			else if (tx->name[0] == '*') //warping texture
 			{
-				mt_wal->width = LittleLong (mt_wal->width);
-				mt_wal->height = LittleLong (mt_wal->height);
-				for (j = 0; j < MIPLEVELS; j++)
-					mt_wal->offsets[j] = LittleLong (mt_wal->offsets[j]);
-				if ( (mt_wal->width & 15) || (mt_wal->height & 15) )
+				//external textures -- first look in "textures/mapname/" then look in "textures/"
+				mark = Hunk_LowMark();
+				COM_StripExtension(loadmodel->name + 5, mapname, sizeof(mapname));
+				q_snprintf(filename, sizeof(filename), "textures/%s/#%s", mapname, tx->name + 1); //this also replaces the '*' with a '#'
+				data = Image_LoadImage(filename, &fwidth, &fheight);
+				if (!data)
 				{
-					Hunk_FreeToLowMark (mark);
-					Sys_Printf ("Texture %s is not 16 aligned", texname);
-					goto bsp_tex_internal;
+					q_snprintf(filename, sizeof(filename), "textures/#%s", tx->name + 1);
+					data = Image_LoadImage(filename, &fwidth, &fheight);
+	}
+
+				//now load whatever we found
+				if (data) //load external image
+				{
+					q_strlcpy(texturename, filename, sizeof(texturename));
+					tx->gltexture = TexMgr_LoadImage(loadmodel, texturename, fwidth, fheight,
+						SRC_RGBA, data, filename, 0, TEXPREF_NONE);
+				}
+				else //use the texture from the bsp file
+				{
+					q_snprintf(texturename, sizeof(texturename), "%s:%s", loadmodel->name, tx->name);
+					offset = (src_offset_t)(mt + 1) - (src_offset_t)mod_base;
+					tx->gltexture = TexMgr_LoadImage(loadmodel, texturename, tx->width, tx->height,
+						SRC_INDEXED, (byte *)(tx + 1), loadmodel->name, offset, TEXPREF_NONE);
 				}
 
-				pixels = mt_wal->width*mt_wal->height/64*85;
-				tx = (texture_t *) Hunk_AllocName (sizeof(texture_t) +pixels, "texture");
-				loadmodel->textures[i] = tx;
-
-				memcpy (tx->name, mt_wal->name, sizeof(tx->name));
-
-				tx->width = mt_wal->width;
-				tx->height = mt_wal->height;
-				for (j = 0; j < MIPLEVELS; j++)
-					tx->offsets[j] = mt_wal->offsets[j] + sizeof(texture_t) - sizeof(miptex_wal_t);
-				// the pixels immediately follow the structures
-				memcpy (tx+1, mt_wal+1, pixels);
-			}
-			else
+				//now create the warpimage, using dummy data from the hunk to create the initial image
+				Hunk_Alloc(gl_warpimagesize*gl_warpimagesize * 4); //make sure hunk is big enough so we don't reach an illegal address
+				Hunk_FreeToLowMark(mark);
+				q_snprintf(texturename, sizeof(texturename), "%s_warp", texturename);
+				tx->warpimage = TexMgr_LoadImage(loadmodel, texturename, gl_warpimagesize,
+					gl_warpimagesize, SRC_RGBA, hunk_base, "", (src_offset_t)hunk_base, TEXPREF_NOPICMIP | TEXPREF_WARPIMAGE);
+				tx->update_warp = true;
+				}
+			else //regular texture
 			{
-				if (mt_wal->ident != IDWALHEADER)
-					Sys_Printf ("%s: %s is not a valid WAL file\n", __thisfunc__, texname);
-				if (mt_wal->version != WALVERSION)
-					Sys_Printf ("%s: WAL file %s has unsupported version (%d)\n", __thisfunc__, texname, mt_wal->version);
-				Hunk_FreeToLowMark (mark);
-				goto bsp_tex_internal;
+				// ericw -- fence textures
+				int	extraflags;
+
+				extraflags = 0;
+				if (tx->name[0] == '{')
+					extraflags |= TEXPREF_ALPHA;
+				// ericw
+
+				//external textures -- first look in "textures/mapname/" then look in "textures/"
+				mark = Hunk_LowMark();
+				COM_StripExtension(loadmodel->name + 5, mapname, sizeof(mapname));
+				q_snprintf(filename, sizeof(filename), "textures/%s/%s", mapname, tx->name);
+				data = Image_LoadImage(filename, &fwidth, &fheight);
+				if (!data)
+				{
+					q_snprintf(filename, sizeof(filename), "textures/%s", tx->name);
+					data = Image_LoadImage(filename, &fwidth, &fheight);
+				}
+
+				//now load whatever we found
+				if (data) //load external image
+				{
+					tx->gltexture = TexMgr_LoadImage(loadmodel, filename, fwidth, fheight,
+						SRC_RGBA, data, filename, 0, TEXPREF_MIPMAP | extraflags);
+
+					//now try to load glow/luma image from the same place
+					Hunk_FreeToLowMark(mark);
+					q_snprintf(filename2, sizeof(filename2), "%s_glow", filename);
+					data = Image_LoadImage(filename2, &fwidth, &fheight);
+					if (!data)
+					{
+						q_snprintf(filename2, sizeof(filename2), "%s_luma", filename);
+						data = Image_LoadImage(filename2, &fwidth, &fheight);
+					}
+
+					if (data)
+						tx->fullbright = TexMgr_LoadImage(loadmodel, filename2, fwidth, fheight,
+							SRC_RGBA, data, filename, 0, TEXPREF_MIPMAP | extraflags);
+				}
+				else //use the texture from the bsp file
+				{
+					q_snprintf(texturename, sizeof(texturename), "%s:%s", loadmodel->name, tx->name);
+					offset = (src_offset_t)(mt + 1) - (src_offset_t)mod_base;
+					if (Mod_CheckFullbrights((byte *)(tx + 1), pixels))
+					{
+						tx->gltexture = TexMgr_LoadImage(loadmodel, texturename, tx->width, tx->height,
+							SRC_INDEXED, (byte *)(tx + 1), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_NOBRIGHT | extraflags);
+						q_snprintf(texturename, sizeof(texturename), "%s:%s_glow", loadmodel->name, tx->name);
+						tx->fullbright = TexMgr_LoadImage(loadmodel, texturename, tx->width, tx->height,
+							SRC_INDEXED, (byte *)(tx + 1), loadmodel->name, offset, TEXPREF_MIPMAP | TEXPREF_FULLBRIGHT | extraflags);
+					}
+					else
+					{
+						tx->gltexture = TexMgr_LoadImage(loadmodel, texturename, tx->width, tx->height,
+							SRC_INDEXED, (byte *)(tx + 1), loadmodel->name, offset, TEXPREF_MIPMAP | extraflags);
+					}
+				}
+				Hunk_FreeToLowMark(mark);
 			}
-		}
-		else
-		{	// load internal bsp pixel data
-bsp_tex_internal:
-#endif /* WAL_TEXTURES */
-
-			
-			if ( (mt->width & 15) || (mt->height & 15) )
-				Sys_Error ("Texture %s is not 16 aligned", mt->name);
-			pixels = mt->width*mt->height/64*85;
-			tx = (texture_t *) Hunk_AllocName (sizeof(texture_t) +pixels, "texture" );
-			loadmodel->textures[i] = tx;
-
-			memcpy (tx->name, mt->name, sizeof(tx->name));
-			tx->width = mt->width;
-			tx->height = mt->height;
-			for (j = 0; j < MIPLEVELS; j++)
-				tx->offsets[j] = mt->offsets[j] + sizeof(texture_t) - sizeof(miptex_t);
-			// the pixels immediately follow the structures
-			memcpy ( tx+1, mt+1, pixels);
-#ifdef WAL_TEXTURES
-		}
-#endif
-
-#if !defined (H2W)
-		if (cls.state == ca_dedicated)
-			continue;
-#endif	/* H2W */
-
-		// ericw -- fence textures
-		int	extraflags;
-
-		extraflags = 0;
-		if (tx->name[0] == '{')
-			extraflags |= TEX_HOLEY;
-		// ericw
-
-		if (!strncmp(mt->name,"sky",3))
-			R_InitSky (tx);
-		else
-			tx->gl_texturenum = GL_LoadTexture (mt->name, (byte *)(tx+1), tx->width, tx->height, (TEX_MIPMAP | extraflags));
+}
+		//johnfitz
 	}
+
+	//johnfitz -- last 2 slots in array should be filled with dummy textures
+	loadmodel->textures[loadmodel->numtextures - 2] = r_notexture_mip; //for lightmapped surfs
+	loadmodel->textures[loadmodel->numtextures - 1] = r_notexture_mip2; //for SURF_DRAWTILED surfs
 
 //
 // sequence the animations
 //
-	for (i = 0; i < m->nummiptex; i++)
+	for (i = 0; i < nummiptex; i++)
 	{
 		tx = loadmodel->textures[i];
 		if (!tx || tx->name[0] != '+')
 			continue;
 		if (tx->anim_next)
-			continue;	// already sequenced
+			continue;	// allready sequenced
 
 	// find the number of frames in the animation
-		memset (anims, 0, sizeof(anims));
-		memset (altanims, 0, sizeof(altanims));
+		memset(anims, 0, sizeof(anims));
+		memset(altanims, 0, sizeof(altanims));
 
 		maxanim = tx->name[1];
 		altmax = 0;
@@ -542,14 +598,14 @@ bsp_tex_internal:
 			altmax++;
 		}
 		else
-			Sys_Error ("Bad animating texture %s", tx->name);
+			Sys_Error("Bad animating texture %s", tx->name);
 
-		for (j = i+1; j < m->nummiptex; j++)
+		for (j = i + 1; j < nummiptex; j++)
 		{
 			tx2 = loadmodel->textures[j];
 			if (!tx2 || tx2->name[0] != '+')
 				continue;
-			if (strcmp (tx2->name+2, tx->name+2))
+			if (strcmp(tx2->name + 2, tx->name + 2))
 				continue;
 
 			num = tx2->name[1];
@@ -559,31 +615,31 @@ bsp_tex_internal:
 			{
 				num -= '0';
 				anims[num] = tx2;
-				if (num+1 > maxanim)
+				if (num + 1 > maxanim)
 					maxanim = num + 1;
 			}
 			else if (num >= 'A' && num <= 'J')
 			{
 				num = num - 'A';
 				altanims[num] = tx2;
-				if (num+1 > altmax)
-					altmax = num+1;
+				if (num + 1 > altmax)
+					altmax = num + 1;
 			}
 			else
-				Sys_Error ("Bad animating texture %s", tx->name);
+				Sys_Error("Bad animating texture %s", tx->name);
 		}
 
 #define	ANIM_CYCLE	2
-	// link them all together
+		// link them all together
 		for (j = 0; j < maxanim; j++)
 		{
 			tx2 = anims[j];
 			if (!tx2)
-				Sys_Error ("Missing frame %i of %s",j, tx->name);
+				Sys_Error("Missing frame %i of %s", j, tx->name);
 			tx2->anim_total = maxanim * ANIM_CYCLE;
 			tx2->anim_min = j * ANIM_CYCLE;
-			tx2->anim_max = (j+1) * ANIM_CYCLE;
-			tx2->anim_next = anims[ (j+1)%maxanim ];
+			tx2->anim_max = (j + 1) * ANIM_CYCLE;
+			tx2->anim_next = anims[(j + 1) % maxanim];
 			if (altmax)
 				tx2->alternate_anims = altanims[0];
 		}
@@ -591,11 +647,11 @@ bsp_tex_internal:
 		{
 			tx2 = altanims[j];
 			if (!tx2)
-				Sys_Error ("Missing frame %i of %s",j, tx->name);
+				Sys_Error("Missing frame %i of %s", j, tx->name);
 			tx2->anim_total = altmax * ANIM_CYCLE;
 			tx2->anim_min = j * ANIM_CYCLE;
-			tx2->anim_max = (j+1) * ANIM_CYCLE;
-			tx2->anim_next = altanims[ (j+1)%altmax ];
+			tx2->anim_max = (j + 1) * ANIM_CYCLE;
+			tx2->anim_next = altanims[(j + 1) % altmax];
 			if (maxanim)
 				tx2->alternate_anims = anims[0];
 		}
@@ -2142,104 +2198,109 @@ static void Mod_FloodFillSkin (byte *skin, int skinwidth, int skinheight)
 Mod_LoadAllSkins
 ===============
 */
-static void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype, int mdl_flags)
+void *Mod_LoadAllSkins(int numskins, daliasskintype_t *pskintype)
 {
-	int	i, j, k;
-	char	name[MAX_QPATH];
-	int	s;
-	byte	*skin;
-	int	tex_mode;
-	int	groupskins;
+	int			i, j, k, size, groupskins;
+	char			name[MAX_QPATH];
+	byte			*skin, *texels;
 	daliasskingroup_t	*pinskingroup;
 	daliasskininterval_t	*pinskinintervals;
+	char			fbr_mask_name[MAX_QPATH]; //johnfitz -- added for fullbright support
+	src_offset_t		offset; //johnfitz
+	unsigned int		texflags = TEXPREF_PAD;
 
 	skin = (byte *)(pskintype + 1);
 
 	if (numskins < 1 || numskins > MAX_SKINS)
-		Sys_Error ("%s: Invalid # of skins: %d", __thisfunc__, numskins);
+		Sys_Error("Mod_LoadAliasModel: Invalid # of skins: %d\n", numskins);
 
-	s = pheader->skinwidth * pheader->skinheight;
+	size = pheader->skinwidth * pheader->skinheight;
 
-	tex_mode = TEX_DEFAULT | TEX_MIPMAP;
-	if (mdl_flags & EF_TRANSPARENT)
-		tex_mode |= TEX_TRANSPARENT;
-	else if (mdl_flags & EF_HOLEY)
-		tex_mode |= TEX_HOLEY;
-	else if (mdl_flags & EF_SPECIAL_TRANS)
-		tex_mode |= TEX_SPECIAL_TRANS;
+	if (loadmodel->flags & EF_HOLEY)
+		texflags |= TEXPREF_ALPHA;
 
 	for (i = 0; i < numskins; i++)
 	{
-	    k = LittleLong (pskintype->type);		/* aliasskintype_t */
-	    if (k == ALIAS_SKIN_SINGLE) {
-		Mod_FloodFillSkin (skin, pheader->skinwidth, pheader->skinheight);
+		if (pskintype->type == ALIAS_SKIN_SINGLE)
+		{
+			Mod_FloodFillSkin(skin, pheader->skinwidth, pheader->skinheight);
 
-		// save 8 bit texels for the player model to remap
-		if (!strcmp(loadmodel->name,"models/paladin.mdl"))
-		{
-			if (s > (int) sizeof(player_8bit_texels[0]))
-				goto skin_too_large;
-			memcpy (player_8bit_texels[0], (byte *)(pskintype + 1), s);
-		}
-		else if (!strcmp(loadmodel->name,"models/crusader.mdl"))
-		{
-			if (s > (int) sizeof(player_8bit_texels[1]))
-				goto skin_too_large;
-			memcpy (player_8bit_texels[1], (byte *)(pskintype + 1), s);
-		}
-		else if (!strcmp(loadmodel->name,"models/necro.mdl"))
-		{
-			if (s > (int) sizeof(player_8bit_texels[2]))
-				goto skin_too_large;
-			memcpy (player_8bit_texels[2], (byte *)(pskintype + 1), s);
-		}
-		else if (!strcmp(loadmodel->name,"models/assassin.mdl"))
-		{
-			if (s > (int) sizeof(player_8bit_texels[3]))
-				goto skin_too_large;
-			memcpy (player_8bit_texels[3], (byte *)(pskintype + 1), s);
-		}
-		else if (!strcmp(loadmodel->name,"models/succubus.mdl"))
-		{
-			if (s > (int) sizeof(player_8bit_texels[4]))
-				goto skin_too_large;
-			memcpy (player_8bit_texels[4], (byte *)(pskintype + 1), s);
-		}
+			// save 8 bit texels for the player model to remap
+			texels = (byte *)Hunk_AllocName(size, loadname);
+			pheader->texels[i] = texels - (byte *)pheader;
+			memcpy(texels, (byte *)(pskintype + 1), size);
 
-		q_snprintf (name, sizeof(name), "%s_%i", loadmodel->name, i);
-		pheader->gl_texturenum[i][0] =
-		pheader->gl_texturenum[i][1] =
-		pheader->gl_texturenum[i][2] =
-		pheader->gl_texturenum[i][3] = GL_LoadTexture (name, (byte *)(pskintype + 1),
-						pheader->skinwidth, pheader->skinheight, tex_mode);
-		pskintype = (daliasskintype_t *)((byte *)(pskintype+1) + s);
+			//johnfitz -- rewritten
+			q_snprintf(name, sizeof(name), "%s:frame%i", loadmodel->name, i);
+			offset = (src_offset_t)(pskintype + 1) - (src_offset_t)mod_base;
+			if (Mod_CheckFullbrights((byte *)(pskintype + 1), size))
+			{
+				pheader->gltextures[i][0] = TexMgr_LoadImage(loadmodel, name, pheader->skinwidth, pheader->skinheight,
+					SRC_INDEXED, (byte *)(pskintype + 1), loadmodel->name, offset, texflags | TEXPREF_NOBRIGHT);
+				q_snprintf(fbr_mask_name, sizeof(fbr_mask_name), "%s:frame%i_glow", loadmodel->name, i);
+				pheader->fbtextures[i][0] = TexMgr_LoadImage(loadmodel, fbr_mask_name, pheader->skinwidth, pheader->skinheight,
+					SRC_INDEXED, (byte *)(pskintype + 1), loadmodel->name, offset, texflags | TEXPREF_FULLBRIGHT);
+			}
+			else
+			{
+				pheader->gltextures[i][0] = TexMgr_LoadImage(loadmodel, name, pheader->skinwidth, pheader->skinheight,
+					SRC_INDEXED, (byte *)(pskintype + 1), loadmodel->name, offset, texflags);
+				pheader->fbtextures[i][0] = NULL;
+			}
 
-	    } else /*if (k == ALIAS_SKIN_GROUP)*/
-	    {						/* animating skin group.  yuck. */
-		pskintype++;
-		pinskingroup = (daliasskingroup_t *)pskintype;
-		groupskins = LittleLong (pinskingroup->numskins);
-		pinskinintervals = (daliasskininterval_t *)(pinskingroup + 1);
+			pheader->gltextures[i][3] = pheader->gltextures[i][2] = pheader->gltextures[i][1] = pheader->gltextures[i][0];
+			pheader->fbtextures[i][3] = pheader->fbtextures[i][2] = pheader->fbtextures[i][1] = pheader->fbtextures[i][0];
+			//johnfitz
 
-		pskintype = (daliasskintype_t *)(pinskinintervals + groupskins);
-		for (j = 0; j < groupskins; j++)
-		{
-			Mod_FloodFillSkin (skin, pheader->skinwidth, pheader->skinheight);
-			q_snprintf (name, sizeof(name), "%s_%i_%i", loadmodel->name, i, j);
-			pheader->gl_texturenum[i][j&3] = GL_LoadTexture (name, (byte *)(pskintype),
-						pheader->skinwidth, pheader->skinheight, tex_mode);
-			pskintype = (daliasskintype_t *)((byte *)(pskintype) + s);
+			pskintype = (daliasskintype_t *)((byte *)(pskintype + 1) + size);
 		}
-		for (k = j; j < 4; j++)
-			pheader->gl_texturenum[i][j&3] = pheader->gl_texturenum[i][j - k];
-	    }
+		else
+		{
+			// animating skin group.  yuck.
+			pskintype++;
+			pinskingroup = (daliasskingroup_t *)pskintype;
+			groupskins = LittleLong(pinskingroup->numskins);
+			pinskinintervals = (daliasskininterval_t *)(pinskingroup + 1);
+
+			pskintype = (daliasskintype_t *)(pinskinintervals + groupskins);
+
+			for (j = 0; j < groupskins; j++)
+			{
+				Mod_FloodFillSkin(skin, pheader->skinwidth, pheader->skinheight);
+				if (j == 0) {
+					texels = (byte *)Hunk_AllocName(size, loadname);
+					pheader->texels[i] = texels - (byte *)pheader;
+					memcpy(texels, (byte *)(pskintype), size);
+				}
+
+				//johnfitz -- rewritten
+				q_snprintf(name, sizeof(name), "%s:frame%i_%i", loadmodel->name, i, j);
+				offset = (src_offset_t)(pskintype)-(src_offset_t)mod_base; //johnfitz
+				if (Mod_CheckFullbrights((byte *)(pskintype), size))
+				{
+					pheader->gltextures[i][j & 3] = TexMgr_LoadImage(loadmodel, name, pheader->skinwidth, pheader->skinheight,
+						SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, texflags | TEXPREF_NOBRIGHT);
+					q_snprintf(fbr_mask_name, sizeof(fbr_mask_name), "%s:frame%i_%i_glow", loadmodel->name, i, j);
+					pheader->fbtextures[i][j & 3] = TexMgr_LoadImage(loadmodel, fbr_mask_name, pheader->skinwidth, pheader->skinheight,
+						SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, texflags | TEXPREF_FULLBRIGHT);
+				}
+				else
+				{
+					pheader->gltextures[i][j & 3] = TexMgr_LoadImage(loadmodel, name, pheader->skinwidth, pheader->skinheight,
+						SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, texflags);
+					pheader->fbtextures[i][j & 3] = NULL;
+				}
+				//johnfitz
+
+				pskintype = (daliasskintype_t *)((byte *)(pskintype)+size);
+			}
+			k = j;
+			for (/**/; j < 4; j++)
+				pheader->gltextures[i][j & 3] = pheader->gltextures[i][j - k];
+		}
 	}
 
 	return (void *)pskintype;
-
-skin_too_large:
-	Sys_Error ("Player skin too large");
-	return NULL;
 }
 
 //=========================================================================

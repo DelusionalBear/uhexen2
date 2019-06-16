@@ -808,6 +808,7 @@ static void R_MirrorChain (msurface_t *s)
 R_DrawWaterSurfaces
 ================
 */
+/*
 void R_DrawWaterSurfaces (void)
 {
 	int			i;
@@ -862,7 +863,7 @@ void R_DrawWaterSurfaces (void)
 	glDisable_fp (GL_BLEND);
 	glDepthMask_fp (1);
 }
-
+*/
 
 /*
 ================
@@ -1601,6 +1602,7 @@ void R_DrawLightmapChains(void)
 DrawTextureChains
 ================
 */
+/*
 static void DrawTextureChains (entity_t *e)
 {
 	int		i;
@@ -1676,6 +1678,7 @@ static void DrawTextureChains (entity_t *e)
 		t->texturechain = NULL;
 	}
 }
+*/
 
 /*
 =================
@@ -1939,6 +1942,11 @@ R_DrawWorld
 */
 void R_DrawWorld (void)
 {
+	if (!r_drawworld_cheatsafe)
+		return;
+
+	R_DrawTextureChains(cl.worldmodel, NULL, chain_world);
+	/*
 	VectorCopy (r_refdef.vieworg, modelorg);
 
 	currenttexture = GL_UNUSED_TEXTURE;
@@ -1970,6 +1978,7 @@ void R_DrawWorld (void)
 #ifdef QUAKE2
 	R_DrawSkyBox ();
 #endif
+*/
 }
 
 

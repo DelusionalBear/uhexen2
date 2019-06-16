@@ -84,6 +84,7 @@ typedef struct texture_s
 	unsigned int	width, height;
 	GLuint			gl_texturenum;
 	struct gltexture_s	*gltexture; //johnfitz -- pointer to gltexture
+	struct gltexture_s	*fullbright; //johnfitz -- fullbright mask texture
 	struct gltexture_s	*warpimage; //johnfitz -- for water animation
 	qboolean			update_warp; //johnfitz -- update warp this frame
 	struct msurface_s	*texturechains[2];	// for texture chains
@@ -333,7 +334,9 @@ typedef struct {
 	int		poseverts;
 	int		posedata;	// numposes*poseverts trivert_t
 	int		commands;	// gl command list with embedded s/t
-	GLuint		gl_texturenum[MAX_SKINS][4];
+	struct gltexture_s	*gltextures[MAX_SKINS][4]; //johnfitz
+	struct gltexture_s	*fbtextures[MAX_SKINS][4]; //johnfitz
+	int					texels[MAX_SKINS];	// only for player skins
 	maliasframedesc_t	frames[1];	// variable sized
 } aliashdr_t;
 
@@ -427,6 +430,12 @@ typedef enum {mod_brush, mod_sprite, mod_alias} modtype_t;
 #define	EF_BLOODSHOT		(1 << 23)	/* Blood rain shot trail				*/
 
 #define	EF_MIP_MAP_FAR		(1 << 24)	/* Set per frame, this model will use the far mip map	*/
+
+//johnfitz -- extra flags for rendering
+#define	MOD_NOLERP		256		//don't lerp when animating
+#define	MOD_NOSHADOW	512		//don't cast a shadow
+#define	MOD_FBRIGHTHACK	1024	//when fullbrights are disabled, use a hack to render this model brighter
+//johnfitz
 
 // XF_ Extra model effects set by engine: qmodel_t->ex_flags
 // effects are model name dependent

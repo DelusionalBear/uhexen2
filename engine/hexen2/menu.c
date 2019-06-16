@@ -2435,7 +2435,7 @@ static void M_OpenGL_Key (int k)
 			default:
 				return;
 			}
-			Cvar_Set ("gl_texturemode", gl_texmodes[tex_mode].name);
+			Cvar_Set ("gl_texturemode", modes[tex_mode].name);
 			break;
 
 		case OGL_ANISOTROPY:	// anisotropic filter level
