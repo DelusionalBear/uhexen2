@@ -207,6 +207,7 @@ qboolean	gl_tex_NPOT = false;
 static cvar_t	gl_texture_NPOT = {"gl_texture_NPOT", "0", CVAR_ARCHIVE};
 GLfloat		gl_max_anisotropy;
 float		gldepthmin, gldepthmax;
+qboolean gl_texture_env_combine = false; //johnfitz
 
 // palettized textures
 static qboolean	have8bit = false;

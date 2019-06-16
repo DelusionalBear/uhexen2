@@ -84,6 +84,8 @@ typedef struct texture_s
 	unsigned int	width, height;
 	GLuint			gl_texturenum;
 	struct gltexture_s	*gltexture; //johnfitz -- pointer to gltexture
+	struct gltexture_s	*warpimage; //johnfitz -- for water animation
+	qboolean			update_warp; //johnfitz -- update warp this frame
 	struct msurface_s	*texturechains[2];	// for texture chains
 	int		anim_total;		// total tenths in sequence ( 0 = no)
 	int		anim_min, anim_max;	// time for this frame min <=time< max
@@ -104,6 +106,8 @@ typedef struct texture_s
 #define SURF_UNDERWATER		0x200
 #define SURF_DONTWARP		0x400
 #define SURF_DRAWFENCE		0x800
+#define SURF_NOTEXTURE		0x1000 //johnfitz
+
 
 // !!! if this is changed, it must be changed in asm_draw.h too !!!
 typedef struct
@@ -151,6 +155,8 @@ typedef struct msurface_s
 	struct	msurface_s	*texturechain;
 
 	mtexinfo_t	*texinfo;
+
+	int		vbo_firstvert;		// index of this surface's first vert in the VBO
 
 // lighting info
 	int		dlightframe;

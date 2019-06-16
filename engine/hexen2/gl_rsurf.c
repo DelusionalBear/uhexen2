@@ -28,6 +28,7 @@ cvar_t		gl_lightmapfmt = {"gl_lightmapfmt", "GL_RGBA", CVAR_ARCHIVE};
 int		lightmap_bytes = 4;		// 1, 2, or 4. default is 4 for GL_RGBA
 gltexture_t        *lightmap_textures[MAX_LIGHTMAPS]; //johnfitz -- changed to an array
 extern cvar_t gl_fullbrights, r_drawflat, gl_overbright, r_oldwater, r_oldskyleaf, r_showtris; //johnfitz
+static GLuint r_world_program;
 
 static unsigned int	blocklights[MAX_SURFACE_LIGHTMAP*MAX_SURFACE_LIGHTMAP];
 static unsigned int	blocklightscolor[MAX_SURFACE_LIGHTMAP*MAX_SURFACE_LIGHTMAP*3];	// colored light support. *3 for RGB to the definitions at the top
@@ -517,145 +518,6 @@ static void DrawGLPolyMTex (glpoly_t *p)
 	glEnd_fp ();
 }
 
-
-/*
-================
-R_BlendLightmaps
-================
-*/
-static void R_BlendLightmaps (qboolean Translucent)
-{
-	unsigned int		i;
-	int			j;
-	glpoly_t	*p;
-	float		*v;
-
-	if (r_fullbright.integer)
-		return;
-
-	if (!Translucent)
-		glDepthMask_fp (0);	// don't bother writing Z
-
-	if (gl_lightmap_format == GL_RGBA)
-	{
-		glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-		glColor4f_fp (1.0f,1.0f,1.0f, 1.0f);
-		glBlendFunc_fp (GL_ZERO, GL_SRC_COLOR);
-	}
-	else if (gl_lightmap_format == GL_LUMINANCE)
-	{
-		glBlendFunc_fp (GL_ZERO, GL_ONE_MINUS_SRC_COLOR);
-	}
-
-	if (!r_lightmap.integer)
-	{
-		glEnable_fp (GL_BLEND);
-	}
-
-	if (! lightmap_textures[0])
-	{
-		// if lightmaps were hosed in a video mode change, make
-		// sure we allocate new slots for lightmaps, otherwise
-		// we'll probably overwrite some other existing textures.
-		glGenTextures_fp(MAX_LIGHTMAPS, lightmap_textures);
-	}
-
-	for (i = 0; i < MAX_LIGHTMAPS; i++)
-	{
-		p = lightmap_polys[i];
-		if (!p)
-			continue;	// skip if no lightmap
-
-		GL_Bind(lightmap_textures[i]);
-
-		if (lightmap_modified[i])
-		{
-			// if current lightmap was changed reload it
-			// and mark as not changed.
-			lightmap_modified[i] = false;
-			glTexImage2D_fp (GL_TEXTURE_2D, 0, lightmap_bytes, BLOCK_WIDTH,
-					BLOCK_HEIGHT, 0, gl_lightmap_format, GL_UNSIGNED_BYTE,
-					lightmaps + i*BLOCK_WIDTH*BLOCK_HEIGHT*lightmap_bytes);
-		}
-
-		for ( ; p ; p = p->chain)
-		{
-			if (p->flags & SURF_UNDERWATER)
-				DrawGLWaterPolyLightmap (p);
-			else
-			{
-				glBegin_fp (GL_POLYGON);
-				v = p->verts[0];
-				for (j = 0; j < p->numverts; j++, v+= VERTEXSIZE)
-				{
-					glTexCoord2f_fp (v[5], v[6]);
-					glVertex3fv_fp (v);
-				}
-				glEnd_fp ();
-			}
-		}
-	}
-
-	if (!r_lightmap.integer)
-	{
-		glDisable_fp (GL_BLEND);
-	}
-
-	if (gl_lightmap_format == GL_RGBA)
-	{
-		glBlendFunc_fp (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-	}
-	else if (gl_lightmap_format == GL_LUMINANCE)
-	{
-		glBlendFunc_fp (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	}
-
-	if (!Translucent)
-		glDepthMask_fp (1);	// back to normal Z buffering
-}
-
-static void R_UpdateLightmaps (qboolean Translucent)
-{
-	unsigned int		i;
-	glpoly_t	*p;
-
-	if (r_fullbright.integer)
-		return;
-
-	glActiveTextureARB_fp (GL_TEXTURE1_ARB);
-
-	if (! lightmap_textures[0])
-	{
-		// if lightmaps were hosed in a video mode change, make
-		// sure we allocate new slots for lightmaps, otherwise
-		// we'll probably overwrite some other existing textures.
-		glGenTextures_fp(MAX_LIGHTMAPS, lightmap_textures);
-	}
-
-	for (i = 0; i < MAX_LIGHTMAPS; i++)
-	{
-		p = lightmap_polys[i];
-		if (!p)
-			continue;	// skip if no lightmap
-
-		GL_Bind(lightmap_textures[i]);
-
-		if (lightmap_modified[i])
-		{
-			// if current lightmap was changed reload it
-			// and mark as not changed.
-			lightmap_modified[i] = false;
-			glTexImage2D_fp (GL_TEXTURE_2D, 0, lightmap_bytes, BLOCK_WIDTH,
-					BLOCK_HEIGHT, 0, gl_lightmap_format, GL_UNSIGNED_BYTE,
-					lightmaps + i*BLOCK_WIDTH*BLOCK_HEIGHT*lightmap_bytes);
-		}
-	}
-
-	glActiveTextureARB_fp (GL_TEXTURE0_ARB);
-}
-
-
 /*
 ================
 R_RenderBrushPoly
@@ -1003,6 +865,268 @@ void R_DrawWaterSurfaces (void)
 
 
 /*
+================
+R_BuildLightmapChains -- johnfitz -- used for r_lightmap 1
+
+ericw -- now always used at the start of R_DrawTextureChains for the
+mh dynamic lighting speedup
+================
+*/
+void R_BuildLightmapChains(qmodel_t *model, texchain_t chain)
+{
+	texture_t *t;
+	msurface_t *s;
+	int i;
+
+	// clear lightmap chains (already done in r_marksurfaces, but clearing them here to be safe becuase of r_stereo)
+	memset(lightmap_polys, 0, sizeof(lightmap_polys));
+
+	// now rebuild them
+	for (i = 0; i < model->numtextures; i++)
+	{
+		t = model->textures[i];
+
+		if (!t || !t->texturechains[chain])
+			continue;
+
+		for (s = t->texturechains[chain]; s; s = s->texturechain)
+			if (!s->culled)
+				R_RenderDynamicLightmaps(s);
+	}
+}
+
+/*
+=============
+R_BeginTransparentDrawing -- ericw
+=============
+*/
+static void R_BeginTransparentDrawing(float entalpha)
+{
+	if (entalpha < 1.0f)
+	{
+		glDepthMask(GL_FALSE);
+		glEnable(GL_BLEND);
+		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		glColor4f(1, 1, 1, entalpha);
+	}
+}
+
+/*
+=============
+R_EndTransparentDrawing -- ericw
+=============
+*/
+static void R_EndTransparentDrawing(float entalpha)
+{
+	if (entalpha < 1.0f)
+	{
+		glDepthMask(GL_TRUE);
+		glDisable(GL_BLEND);
+		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		glColor3f(1, 1, 1);
+	}
+}
+
+/*
+================
+R_DrawTextureChains_ShowTris -- johnfitz
+================
+*/
+void R_DrawTextureChains_ShowTris(qmodel_t *model, texchain_t chain)
+{
+	int			i;
+	msurface_t	*s;
+	texture_t	*t;
+	glpoly_t	*p;
+
+	for (i = 0; i < model->numtextures; i++)
+	{
+		t = model->textures[i];
+		if (!t)
+			continue;
+
+		if (r_oldwater.value && t->texturechains[chain] && (t->texturechains[chain]->flags & SURF_DRAWTURB))
+		{
+			for (s = t->texturechains[chain]; s; s = s->texturechain)
+				if (!s->culled)
+					for (p = s->polys->next; p; p = p->next)
+					{
+						DrawGLTriangleFan(p);
+					}
+		}
+		else
+		{
+			for (s = t->texturechains[chain]; s; s = s->texturechain)
+				if (!s->culled)
+				{
+					DrawGLTriangleFan(s->polys);
+				}
+		}
+	}
+}
+
+/*
+================
+R_DrawTextureChains_Drawflat -- johnfitz
+================
+*/
+void R_DrawTextureChains_Drawflat(qmodel_t *model, texchain_t chain)
+{
+	int			i;
+	msurface_t	*s;
+	texture_t	*t;
+	glpoly_t	*p;
+
+	for (i = 0; i < model->numtextures; i++)
+	{
+		t = model->textures[i];
+		if (!t)
+			continue;
+
+		if (r_oldwater.value && t->texturechains[chain] && (t->texturechains[chain]->flags & SURF_DRAWTURB))
+		{
+			for (s = t->texturechains[chain]; s; s = s->texturechain)
+				if (!s->culled)
+					for (p = s->polys->next; p; p = p->next)
+					{
+						srand((unsigned int)(uintptr_t)p);
+						glColor3f(rand() % 256 / 255.0, rand() % 256 / 255.0, rand() % 256 / 255.0);
+						DrawGLPoly(p);
+					}
+		}
+		else
+		{
+			for (s = t->texturechains[chain]; s; s = s->texturechain)
+				if (!s->culled)
+				{
+					srand((unsigned int)(uintptr_t)s->polys);
+					glColor3f(rand() % 256 / 255.0, rand() % 256 / 255.0, rand() % 256 / 255.0);
+					DrawGLPoly(s->polys);
+				}
+		}
+	}
+	glColor3f(1, 1, 1);
+	srand((int)(cl.time * 1000));
+}
+
+/*
+================
+R_DrawTextureChains_Glow -- johnfitz
+================
+*/
+void R_DrawTextureChains_Glow(qmodel_t *model, entity_t *ent, texchain_t chain)
+{
+	int			i;
+	msurface_t	*s;
+	texture_t	*t;
+	gltexture_t	*glt;
+	qboolean	bound;
+
+	for (i = 0; i < model->numtextures; i++)
+	{
+		t = model->textures[i];
+
+		if (!t || !t->texturechains[chain] || !(glt = R_TextureAnimation(t, ent != NULL ? ent->frame : 0)->fullbright))
+			continue;
+
+		bound = false;
+
+		for (s = t->texturechains[chain]; s; s = s->texturechain)
+			if (!s->culled)
+			{
+				if (!bound) //only bind once we are sure we need this texture
+				{
+					GL_Bind(glt);
+					bound = true;
+				}
+				DrawGLPoly(s->polys);
+			}
+	}
+}
+
+//==============================================================================
+//
+// VBO SUPPORT
+//
+//==============================================================================
+
+static unsigned int R_NumTriangleIndicesForSurf(msurface_t *s)
+{
+	return 3 * (s->numedges - 2);
+}
+
+/*
+================
+R_TriangleIndicesForSurf
+
+Writes out the triangle indices needed to draw s as a triangle list.
+The number of indices it will write is given by R_NumTriangleIndicesForSurf.
+================
+*/
+static void R_TriangleIndicesForSurf(msurface_t *s, unsigned int *dest)
+{
+	int i;
+	for (i = 2; i < s->numedges; i++)
+	{
+		*dest++ = s->vbo_firstvert;
+		*dest++ = s->vbo_firstvert + i - 1;
+		*dest++ = s->vbo_firstvert + i;
+	}
+}
+
+#define MAX_BATCH_SIZE 4096
+
+static unsigned int vbo_indices[MAX_BATCH_SIZE];
+static unsigned int num_vbo_indices;
+
+/*
+================
+R_ClearBatch
+================
+*/
+static void R_ClearBatch()
+{
+	num_vbo_indices = 0;
+}
+
+/*
+================
+R_FlushBatch
+
+Draw the current batch if non-empty and clears it, ready for more R_BatchSurface calls.
+================
+*/
+static void R_FlushBatch()
+{
+	if (num_vbo_indices > 0)
+	{
+		glDrawElements(GL_TRIANGLES, num_vbo_indices, GL_UNSIGNED_INT, vbo_indices);
+		num_vbo_indices = 0;
+	}
+}
+
+/*
+================
+R_BatchSurface
+
+Add the surface to the current batch, or just draw it immediately if we're not
+using VBOs.
+================
+*/
+static void R_BatchSurface(msurface_t *s)
+{
+	int num_surf_indices;
+
+	num_surf_indices = R_NumTriangleIndicesForSurf(s);
+
+	if (num_vbo_indices + num_surf_indices > MAX_BATCH_SIZE)
+		R_FlushBatch();
+
+	R_TriangleIndicesForSurf(s, &vbo_indices[num_vbo_indices]);
+	num_vbo_indices += num_surf_indices;
+}
+
+/*
 =============
 R_DrawWorld -- johnfitz -- rewritten
 =============
@@ -1072,6 +1196,7 @@ void R_DrawTextureChains(qmodel_t *model, entity_t *ent, texchain_t chain)
 
 	if (gl_overbright.value)
 	{
+		/*
 		if (gl_texture_env_combine && gl_mtexable) //case 1: texture and lightmap in one pass, overbright using texture combiners
 		{
 			GL_EnableMultitexture();
@@ -1088,7 +1213,9 @@ void R_DrawTextureChains(qmodel_t *model, entity_t *ent, texchain_t chain)
 			GL_DisableMultitexture();
 			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 		}
-		else if (entalpha < 1) //case 2: can't do multipass if entity has alpha, so just draw the texture
+		else
+		*/
+		if (entalpha < 1) //case 2: can't do multipass if entity has alpha, so just draw the texture
 		{
 			R_DrawTextureChains_TextureOnly(model, ent, chain);
 		}
@@ -1181,6 +1308,290 @@ fullbrights:
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glDisable(GL_BLEND);
 		glDepthMask(GL_TRUE);
+	}
+}
+
+/*
+================
+R_DrawTextureChains_Multitexture -- johnfitz
+================
+*/
+void R_DrawTextureChains_Multitexture(qmodel_t *model, entity_t *ent, texchain_t chain)
+{
+	int			i, j;
+	msurface_t	*s;
+	texture_t	*t;
+	float		*v;
+	qboolean	bound;
+
+	for (i = 0; i < model->numtextures; i++)
+	{
+		t = model->textures[i];
+
+		if (!t || !t->texturechains[chain] || t->texturechains[chain]->flags & (SURF_DRAWTILED | SURF_NOTEXTURE))
+			continue;
+
+		bound = false;
+		for (s = t->texturechains[chain]; s; s = s->texturechain)
+			if (!s->culled)
+			{
+				if (!bound) //only bind once we are sure we need this texture
+				{
+					GL_Bind((R_TextureAnimation(t, ent != NULL ? ent->frame : 0))->gltexture);
+
+					if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
+						glEnable(GL_ALPHA_TEST); // Flip alpha test back on
+
+					GL_EnableMultitexture(); // selects TEXTURE1
+					bound = true;
+				}
+				GL_Bind(lightmap_textures[s->lightmaptexturenum]);
+				glBegin(GL_POLYGON);
+				v = s->polys->verts[0];
+				for (j = 0; j < s->polys->numverts; j++, v += VERTEXSIZE)
+				{
+					GL_MTexCoord2fFunc(GL_TEXTURE0_ARB, v[3], v[4]);
+					GL_MTexCoord2fFunc(GL_TEXTURE1_ARB, v[5], v[6]);
+					glVertex3fv(v);
+				}
+				glEnd();
+			}
+		GL_DisableMultitexture(); // selects TEXTURE0
+
+		if (bound && t->texturechains[chain]->flags & SURF_DRAWFENCE)
+			glDisable(GL_ALPHA_TEST); // Flip alpha test back off
+	}
+}
+
+/*
+================
+R_DrawTextureChains_NoTexture -- johnfitz
+
+draws surfs whose textures were missing from the BSP
+================
+*/
+void R_DrawTextureChains_NoTexture(qmodel_t *model, texchain_t chain)
+{
+	int			i;
+	msurface_t	*s;
+	texture_t	*t;
+	qboolean	bound;
+
+	for (i = 0; i < model->numtextures; i++)
+	{
+		t = model->textures[i];
+
+		if (!t || !t->texturechains[chain] || !(t->texturechains[chain]->flags & SURF_NOTEXTURE))
+			continue;
+
+		bound = false;
+
+		for (s = t->texturechains[chain]; s; s = s->texturechain)
+			if (!s->culled)
+			{
+				if (!bound) //only bind once we are sure we need this texture
+				{
+					GL_Bind(t->gltexture);
+					bound = true;
+				}
+				DrawGLPoly(s->polys);
+			}
+	}
+}
+
+/*
+================
+R_DrawTextureChains_TextureOnly -- johnfitz
+================
+*/
+void R_DrawTextureChains_TextureOnly(qmodel_t *model, entity_t *ent, texchain_t chain)
+{
+	int			i;
+	msurface_t	*s;
+	texture_t	*t;
+	qboolean	bound;
+
+	for (i = 0; i < model->numtextures; i++)
+	{
+		t = model->textures[i];
+
+		if (!t || !t->texturechains[chain] || t->texturechains[chain]->flags & (SURF_DRAWTURB | SURF_DRAWSKY))
+			continue;
+
+		bound = false;
+
+		for (s = t->texturechains[chain]; s; s = s->texturechain)
+			if (!s->culled)
+			{
+				if (!bound) //only bind once we are sure we need this texture
+				{
+					GL_Bind((R_TextureAnimation(t, ent != NULL ? ent->frame : 0))->gltexture);
+
+					if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
+						glEnable(GL_ALPHA_TEST); // Flip alpha test back on
+
+					bound = true;
+				}
+				DrawGLPoly(s->polys);
+			}
+
+		if (bound && t->texturechains[chain]->flags & SURF_DRAWFENCE)
+			glDisable(GL_ALPHA_TEST); // Flip alpha test back off
+	}
+}
+
+/*
+================
+GL_WaterAlphaForEntitySurface -- ericw
+
+Returns the water alpha to use for the entity and surface combination.
+================
+*/
+float GL_WaterAlphaForEntitySurface(entity_t *ent, msurface_t *s)
+{
+	float entalpha;
+	if (ent == NULL || ent->alpha == ENTALPHA_DEFAULT)
+		entalpha = GL_WaterAlphaForSurface(s);
+	else
+		entalpha = ENTALPHA_DECODE(ent->alpha);
+	return entalpha;
+}
+
+/*
+================
+R_DrawTextureChains_Water -- johnfitz
+================
+*/
+void R_DrawTextureChains_Water(qmodel_t *model, entity_t *ent, texchain_t chain)
+{
+	int			i;
+	msurface_t	*s;
+	texture_t	*t;
+	glpoly_t	*p;
+	qboolean	bound;
+	float entalpha;
+
+	if (r_drawflat_cheatsafe || r_lightmap_cheatsafe) // ericw -- !r_drawworld_cheatsafe check moved to R_DrawWorld_Water ()
+		return;
+
+	if (r_oldwater.value)
+	{
+		for (i = 0; i < model->numtextures; i++)
+		{
+			t = model->textures[i];
+			if (!t || !t->texturechains[chain] || !(t->texturechains[chain]->flags & SURF_DRAWTURB))
+				continue;
+			bound = false;
+			entalpha = 1.0f;
+			for (s = t->texturechains[chain]; s; s = s->texturechain)
+				if (!s->culled)
+				{
+					if (!bound) //only bind once we are sure we need this texture
+					{
+						entalpha = GL_WaterAlphaForEntitySurface(ent, s);
+						R_BeginTransparentDrawing(entalpha);
+						GL_Bind(t->gltexture);
+						bound = true;
+					}
+					for (p = s->polys->next; p; p = p->next)
+					{
+						DrawWaterPoly(p);
+					}
+				}
+			R_EndTransparentDrawing(entalpha);
+		}
+	}
+	else
+	{
+		for (i = 0; i < model->numtextures; i++)
+		{
+			t = model->textures[i];
+			if (!t || !t->texturechains[chain] || !(t->texturechains[chain]->flags & SURF_DRAWTURB))
+				continue;
+			bound = false;
+			entalpha = 1.0f;
+			for (s = t->texturechains[chain]; s; s = s->texturechain)
+				if (!s->culled)
+				{
+					if (!bound) //only bind once we are sure we need this texture
+					{
+						entalpha = GL_WaterAlphaForEntitySurface(ent, s);
+						R_BeginTransparentDrawing(entalpha);
+						GL_Bind(t->warpimage);
+
+						if (model != cl.worldmodel)
+						{
+							// ericw -- this is copied from R_DrawSequentialPoly.
+							// If the poly is not part of the world we have to
+							// set this flag
+							t->update_warp = true; // FIXME: one frame too late!
+						}
+
+						bound = true;
+					}
+					DrawGLPoly(s->polys);
+				}
+			R_EndTransparentDrawing(entalpha);
+		}
+	}
+}
+
+/*
+================
+R_DrawTextureChains_White -- johnfitz -- draw sky and water as white polys when r_lightmap is 1
+================
+*/
+void R_DrawTextureChains_White(qmodel_t *model, texchain_t chain)
+{
+	int			i;
+	msurface_t	*s;
+	texture_t	*t;
+
+	glDisable(GL_TEXTURE_2D);
+	for (i = 0; i < model->numtextures; i++)
+	{
+		t = model->textures[i];
+
+		if (!t || !t->texturechains[chain] || !(t->texturechains[chain]->flags & SURF_DRAWTILED))
+			continue;
+
+		for (s = t->texturechains[chain]; s; s = s->texturechain)
+			if (!s->culled)
+			{
+				DrawGLPoly(s->polys);
+			}
+	}
+	glEnable(GL_TEXTURE_2D);
+}
+
+/*
+================
+R_DrawLightmapChains -- johnfitz -- R_BlendLightmaps stripped down to almost nothing
+================
+*/
+void R_DrawLightmapChains(void)
+{
+	int			i, j;
+	glpoly_t	*p;
+	float		*v;
+
+	for (i = 0; i < MAX_LIGHTMAPS; i++)
+	{
+		if (!lightmap_polys[i])
+			continue;
+
+		GL_Bind(lightmap_textures[i]);
+		for (p = lightmap_polys[i]; p; p = p->chain)
+		{
+			glBegin(GL_POLYGON);
+			v = p->verts[0];
+			for (j = 0; j < p->numverts; j++, v += VERTEXSIZE)
+			{
+				glTexCoord2f(v[5], v[6]);
+				glVertex3fv(v);
+			}
+			glEnd();
+		}
 	}
 }
 

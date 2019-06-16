@@ -161,6 +161,7 @@ extern	int		gl_texlevel;
 extern	int		numgltextures;
 extern	qboolean	flush_textures;
 extern	gltexture_t	gltextures[MAX_GLTEXTURES];
+extern qboolean gl_texture_env_combine;
 
 extern	int		gl_filter_idx;
 extern	float		gldepthmin, gldepthmax;
