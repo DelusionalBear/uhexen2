@@ -37,6 +37,7 @@ const int	color_offsets[MAX_PLAYER_CLASS] =
 #endif
 };
 
+extern cvar_t gl_overbright;
 cvar_t			gl_purge_maptex = {"gl_purge_maptex", "1", CVAR_ARCHIVE};
 				// whether or not map-specific OGL textures
 				// are purged on map change. default == yes
@@ -222,6 +223,8 @@ void R_Init (void)
 	Cvar_RegisterVariable (&gl_playermip);
 	Cvar_RegisterVariable (&gl_nocolors);
 	Cvar_RegisterVariable (&gl_waterripple);
+	Cvar_RegisterVariable (&gl_overbright);
+
 
 	Cvar_RegisterVariable (&gl_ztrick);
 	Cvar_RegisterVariable (&gl_zfix);

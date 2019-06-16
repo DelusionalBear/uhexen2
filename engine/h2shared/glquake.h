@@ -63,6 +63,7 @@
 
 extern int gl_warpimagesize; //johnfitz -- for water warp
 
+extern qboolean r_drawflat_cheatsafe, r_fullbright_cheatsafe, r_lightmap_cheatsafe, r_drawworld_cheatsafe; //johnfitz
 
 /* ====================================================================
    ENDIANNESS: RGBA

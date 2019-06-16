@@ -27,6 +27,7 @@ int		gl_lightmap_format = GL_RGBA;
 cvar_t		gl_lightmapfmt = {"gl_lightmapfmt", "GL_RGBA", CVAR_ARCHIVE};
 int		lightmap_bytes = 4;		// 1, 2, or 4. default is 4 for GL_RGBA
 gltexture_t        *lightmap_textures[MAX_LIGHTMAPS]; //johnfitz -- changed to an array
+extern cvar_t gl_fullbrights, r_drawflat, gl_overbright, r_oldwater, r_oldskyleaf, r_showtris; //johnfitz
 
 static unsigned int	blocklights[MAX_SURFACE_LIGHTMAP*MAX_SURFACE_LIGHTMAP];
 static unsigned int	blocklightscolor[MAX_SURFACE_LIGHTMAP*MAX_SURFACE_LIGHTMAP*3];	// colored light support. *3 for RGB to the definitions at the top
@@ -1000,6 +1001,7 @@ void R_DrawWaterSurfaces (void)
 	glDepthMask_fp (1);
 }
 
+
 /*
 =============
 R_DrawWorld -- johnfitz -- rewritten
@@ -1179,6 +1181,88 @@ fullbrights:
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glDisable(GL_BLEND);
 		glDepthMask(GL_TRUE);
+	}
+}
+
+
+/*
+================
+DrawTextureChains
+================
+*/
+static void DrawTextureChains (entity_t *e)
+{
+	int		i;
+	msurface_t	*s;
+	texture_t	*t;
+
+	for (i = 0; i < cl.worldmodel->numtextures; i++)
+	{
+		t = cl.worldmodel->textures[i];
+		if (!t)
+			continue;
+		s = t->texturechain;
+		if (!s)
+			continue;
+		if (i == skytexturenum)
+			R_DrawSkyChain (s);
+		else if (i == mirrortexturenum && r_mirroralpha.value != 1.0)
+		{
+			R_MirrorChain (s);
+			continue;
+		}
+		else
+		{
+			if ((s->flags & SURF_DRAWTURB) && r_wateralpha.value != 1.0)
+				continue;	// draw translucent water later
+
+			qboolean drawFence = false;
+
+			if (s->flags & SURF_DRAWFENCE)
+			{
+				drawFence = true;
+				glEnable_fp(GL_ALPHA_TEST); // Flip on alpha test
+			}
+
+			if (((e->drawflags & DRF_TRANSLUCENT) ||
+				(e->drawflags & MLS_ABSLIGHT) == MLS_ABSLIGHT))
+			{
+				for ( ; s ; s = s->texturechain)
+					R_RenderBrushPoly (e, s, false);
+			}
+			else if (gl_mtexable)
+			{
+				glActiveTextureARB_fp(GL_TEXTURE0_ARB);
+				glEnable_fp(GL_TEXTURE_2D);
+				glActiveTextureARB_fp(GL_TEXTURE1_ARB);
+				glEnable_fp(GL_TEXTURE_2D);
+
+				if (gl_lightmap_format == GL_LUMINANCE)
+					glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_BLEND);
+				else
+					glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+				glEnable_fp (GL_BLEND);
+
+				for ( ; s ; s = s->texturechain)
+					R_RenderBrushPolyMTex (e, s, false);
+
+				glDisable_fp(GL_TEXTURE_2D);
+				glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+				glDisable_fp (GL_BLEND);
+				glActiveTextureARB_fp(GL_TEXTURE0_ARB);
+			}
+			else
+			{
+				for ( ; s ; s = s->texturechain)
+					R_RenderBrushPoly (e, s, false);
+			}
+			if (drawFence)
+				glDisable_fp(GL_ALPHA_TEST); // Flip alpha test back off
+
+		}
+
+		t->texturechain = NULL;
 	}
 }
 
