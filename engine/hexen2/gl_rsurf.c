@@ -905,10 +905,10 @@ static void R_BeginTransparentDrawing(float entalpha)
 {
 	if (entalpha < 1.0f)
 	{
-		glDepthMask(GL_FALSE);
-		glEnable(GL_BLEND);
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-		glColor4f(1, 1, 1, entalpha);
+		glDepthMask_fp(GL_FALSE);
+		glEnable_fp(GL_BLEND);
+		glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		glColor4f_fp(1, 1, 1, entalpha);
 	}
 }
 
@@ -921,10 +921,10 @@ static void R_EndTransparentDrawing(float entalpha)
 {
 	if (entalpha < 1.0f)
 	{
-		glDepthMask(GL_TRUE);
-		glDisable(GL_BLEND);
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		glColor3f(1, 1, 1);
+		glDepthMask_fp(GL_TRUE);
+		glDisable_fp(GL_BLEND);
+		glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		glColor3f_fp(1, 1, 1);
 	}
 }
 
@@ -991,7 +991,7 @@ void R_DrawTextureChains_Drawflat(qmodel_t *model, texchain_t chain)
 					for (p = s->polys->next; p; p = p->next)
 					{
 						srand((unsigned int)(uintptr_t)p);
-						glColor3f(rand() % 256 / 255.0, rand() % 256 / 255.0, rand() % 256 / 255.0);
+						glColor3f_fp(rand() % 256 / 255.0, rand() % 256 / 255.0, rand() % 256 / 255.0);
 						DrawGLPoly(p);
 					}
 		}
@@ -1001,12 +1001,12 @@ void R_DrawTextureChains_Drawflat(qmodel_t *model, texchain_t chain)
 				if (!s->culled)
 				{
 					srand((unsigned int)(uintptr_t)s->polys);
-					glColor3f(rand() % 256 / 255.0, rand() % 256 / 255.0, rand() % 256 / 255.0);
+					glColor3f_fp(rand() % 256 / 255.0, rand() % 256 / 255.0, rand() % 256 / 255.0);
 					DrawGLPoly(s->polys);
 				}
 		}
 	}
-	glColor3f(1, 1, 1);
+	glColor3f_fp(1, 1, 1);
 	srand((int)(cl.time * 1000));
 }
 
@@ -1128,191 +1128,6 @@ static void R_BatchSurface(msurface_t *s)
 }
 
 /*
-=============
-R_DrawWorld -- johnfitz -- rewritten
-=============
-*/
-void R_DrawTextureChains(qmodel_t *model, entity_t *ent, texchain_t chain)
-{
-	float entalpha;
-
-	if (ent != NULL)
-		entalpha = ENTALPHA_DECODE(ent->alpha);
-	else
-		entalpha = 1;
-
-	// ericw -- the mh dynamic lightmap speedup: make a first pass through all
-	// surfaces we are going to draw, and rebuild any lightmaps that need it.
-	// this also chains surfaces by lightmap which is used by r_lightmap 1.
-	// the previous implementation of the speedup uploaded lightmaps one frame
-	// late which was visible under some conditions, this method avoids that.
-	R_BuildLightmapChains(model, chain);
-	R_UploadLightmaps();
-
-	if (r_drawflat_cheatsafe)
-	{
-		glDisable(GL_TEXTURE_2D);
-		R_DrawTextureChains_Drawflat(model, chain);
-		glEnable(GL_TEXTURE_2D);
-		return;
-	}
-
-	if (r_fullbright_cheatsafe)
-	{
-		R_BeginTransparentDrawing(entalpha);
-		R_DrawTextureChains_TextureOnly(model, ent, chain);
-		R_EndTransparentDrawing(entalpha);
-		goto fullbrights;
-	}
-
-	if (r_lightmap_cheatsafe)
-	{
-		if (!gl_overbright.value)
-		{
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-			glColor3f(0.5, 0.5, 0.5);
-		}
-		R_DrawLightmapChains();
-		if (!gl_overbright.value)
-		{
-			glColor3f(1, 1, 1);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		}
-		R_DrawTextureChains_White(model, chain);
-		return;
-	}
-
-	R_BeginTransparentDrawing(entalpha);
-
-	R_DrawTextureChains_NoTexture(model, chain);
-
-	// OpenGL 2 fast path
-	if (r_world_program != 0)
-	{
-		R_EndTransparentDrawing(entalpha);
-
-		R_DrawTextureChains_GLSL(model, ent, chain);
-		return;
-	}
-
-	if (gl_overbright.value)
-	{
-		/*
-		if (gl_texture_env_combine && gl_mtexable) //case 1: texture and lightmap in one pass, overbright using texture combiners
-		{
-			GL_EnableMultitexture();
-			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
-			glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
-			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_PREVIOUS_EXT);
-			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_TEXTURE);
-			glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 2.0f);
-			GL_DisableMultitexture();
-			R_DrawTextureChains_Multitexture(model, ent, chain);
-			GL_EnableMultitexture();
-			glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 1.0f);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-			GL_DisableMultitexture();
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		}
-		else
-		*/
-		if (entalpha < 1) //case 2: can't do multipass if entity has alpha, so just draw the texture
-		{
-			R_DrawTextureChains_TextureOnly(model, ent, chain);
-		}
-		else //case 3: texture in one pass, lightmap in second pass using 2x modulation blend func, fog in third pass
-		{
-			//to make fog work with multipass lightmapping, need to do one pass
-			//with no fog, one modulate pass with black fog, and one additive
-			//pass with black geometry and normal fog
-			Fog_DisableGFog();
-			R_DrawTextureChains_TextureOnly(model, ent, chain);
-			Fog_EnableGFog();
-			glDepthMask(GL_FALSE);
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_DST_COLOR, GL_SRC_COLOR); //2x modulate
-			Fog_StartAdditive();
-			R_DrawLightmapChains();
-			Fog_StopAdditive();
-			if (Fog_GetDensity() > 0)
-			{
-				glBlendFunc(GL_ONE, GL_ONE); //add
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-				glColor3f(0, 0, 0);
-				R_DrawTextureChains_TextureOnly(model, ent, chain);
-				glColor3f(1, 1, 1);
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-			}
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			glDisable(GL_BLEND);
-			glDepthMask(GL_TRUE);
-		}
-	}
-	else
-	{
-		if (gl_mtexable) //case 4: texture and lightmap in one pass, regular modulation
-		{
-			GL_EnableMultitexture();
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-			GL_DisableMultitexture();
-			R_DrawTextureChains_Multitexture(model, ent, chain);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		}
-		else if (entalpha < 1) //case 5: can't do multipass if entity has alpha, so just draw the texture
-		{
-			R_DrawTextureChains_TextureOnly(model, ent, chain);
-		}
-		else //case 6: texture in one pass, lightmap in a second pass, fog in third pass
-		{
-			//to make fog work with multipass lightmapping, need to do one pass
-			//with no fog, one modulate pass with black fog, and one additive
-			//pass with black geometry and normal fog
-			Fog_DisableGFog();
-			R_DrawTextureChains_TextureOnly(model, ent, chain);
-			Fog_EnableGFog();
-			glDepthMask(GL_FALSE);
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_ZERO, GL_SRC_COLOR); //modulate
-			Fog_StartAdditive();
-			R_DrawLightmapChains();
-			Fog_StopAdditive();
-			if (Fog_GetDensity() > 0)
-			{
-				glBlendFunc(GL_ONE, GL_ONE); //add
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-				glColor3f(0, 0, 0);
-				R_DrawTextureChains_TextureOnly(model, ent, chain);
-				glColor3f(1, 1, 1);
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-			}
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			glDisable(GL_BLEND);
-			glDepthMask(GL_TRUE);
-		}
-	}
-
-	R_EndTransparentDrawing(entalpha);
-
-fullbrights:
-	if (r_fullbright.integer)
-	{
-		glDepthMask(GL_FALSE);
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_ONE, GL_ONE);
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-		glColor3f(entalpha, entalpha, entalpha);
-		Fog_StartAdditive();
-		R_DrawTextureChains_Glow(model, ent, chain);
-		Fog_StopAdditive();
-		glColor3f(1, 1, 1);
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glDisable(GL_BLEND);
-		glDepthMask(GL_TRUE);
-	}
-}
-
-/*
 ================
 R_DrawTextureChains_Multitexture -- johnfitz
 ================
@@ -1341,26 +1156,26 @@ void R_DrawTextureChains_Multitexture(qmodel_t *model, entity_t *ent, texchain_t
 					GL_Bind((R_TextureAnimation(t, ent != NULL ? ent->frame : 0))->gltexture);
 
 					if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
-						glEnable(GL_ALPHA_TEST); // Flip alpha test back on
+						glEnable_fp(GL_ALPHA_TEST); // Flip alpha test back on
 
 					GL_EnableMultitexture(); // selects TEXTURE1
 					bound = true;
 				}
 				GL_Bind(lightmap_textures[s->lightmaptexturenum]);
-				glBegin(GL_POLYGON);
+				glBegin_fp(GL_POLYGON);
 				v = s->polys->verts[0];
 				for (j = 0; j < s->polys->numverts; j++, v += VERTEXSIZE)
 				{
 					GL_MTexCoord2fFunc(GL_TEXTURE0_ARB, v[3], v[4]);
 					GL_MTexCoord2fFunc(GL_TEXTURE1_ARB, v[5], v[6]);
-					glVertex3fv(v);
+					glVertex3fv_fp(v);
 				}
-				glEnd();
+				glEnd_fp();
 			}
 		GL_DisableMultitexture(); // selects TEXTURE0
 
 		if (bound && t->texturechains[chain]->flags & SURF_DRAWFENCE)
-			glDisable(GL_ALPHA_TEST); // Flip alpha test back off
+			glDisable_fp(GL_ALPHA_TEST); // Flip alpha test back off
 	}
 }
 
@@ -1429,7 +1244,7 @@ void R_DrawTextureChains_TextureOnly(qmodel_t *model, entity_t *ent, texchain_t 
 					GL_Bind((R_TextureAnimation(t, ent != NULL ? ent->frame : 0))->gltexture);
 
 					if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
-						glEnable(GL_ALPHA_TEST); // Flip alpha test back on
+						glEnable_fp(GL_ALPHA_TEST); // Flip alpha test back on
 
 					bound = true;
 				}
@@ -1437,7 +1252,7 @@ void R_DrawTextureChains_TextureOnly(qmodel_t *model, entity_t *ent, texchain_t 
 			}
 
 		if (bound && t->texturechains[chain]->flags & SURF_DRAWFENCE)
-			glDisable(GL_ALPHA_TEST); // Flip alpha test back off
+			glDisable_fp(GL_ALPHA_TEST); // Flip alpha test back off
 	}
 }
 
@@ -1548,7 +1363,7 @@ void R_DrawTextureChains_White(qmodel_t *model, texchain_t chain)
 	msurface_t	*s;
 	texture_t	*t;
 
-	glDisable(GL_TEXTURE_2D);
+	glDisable_fp(GL_TEXTURE_2D);
 	for (i = 0; i < model->numtextures; i++)
 	{
 		t = model->textures[i];
@@ -1562,7 +1377,7 @@ void R_DrawTextureChains_White(qmodel_t *model, texchain_t chain)
 				DrawGLPoly(s->polys);
 			}
 	}
-	glEnable(GL_TEXTURE_2D);
+	glEnable_fp(GL_TEXTURE_2D);
 }
 
 /*
@@ -1584,18 +1399,202 @@ void R_DrawLightmapChains(void)
 		GL_Bind(lightmap_textures[i]);
 		for (p = lightmap_polys[i]; p; p = p->chain)
 		{
-			glBegin(GL_POLYGON);
+			glBegin_fp(GL_POLYGON);
 			v = p->verts[0];
 			for (j = 0; j < p->numverts; j++, v += VERTEXSIZE)
 			{
-				glTexCoord2f(v[5], v[6]);
-				glVertex3fv(v);
+				glTexCoord2f_fp(v[5], v[6]);
+				glVertex3fv_fp(v);
 			}
-			glEnd();
+			glEnd_fp();
 		}
 	}
 }
 
+/*
+=============
+R_DrawWorld -- johnfitz -- rewritten
+=============
+*/
+void R_DrawTextureChains(qmodel_t *model, entity_t *ent, texchain_t chain)
+{
+	float entalpha;
+
+	if (ent != NULL)
+		entalpha = ENTALPHA_DECODE(ent->alpha);
+	else
+		entalpha = 1;
+
+	// ericw -- the mh dynamic lightmap speedup: make a first pass through all
+	// surfaces we are going to draw, and rebuild any lightmaps that need it.
+	// this also chains surfaces by lightmap which is used by r_lightmap 1.
+	// the previous implementation of the speedup uploaded lightmaps one frame
+	// late which was visible under some conditions, this method avoids that.
+	R_BuildLightmapChains(model, chain);
+	R_UploadLightmaps();
+
+	if (r_drawflat_cheatsafe)
+	{
+		glDisable_fp(GL_TEXTURE_2D);
+		R_DrawTextureChains_Drawflat(model, chain);
+		glEnable_fp(GL_TEXTURE_2D);
+		return;
+	}
+
+	if (r_fullbright_cheatsafe)
+	{
+		R_BeginTransparentDrawing(entalpha);
+		R_DrawTextureChains_TextureOnly(model, ent, chain);
+		R_EndTransparentDrawing(entalpha);
+		goto fullbrights;
+	}
+
+	if (r_lightmap_cheatsafe)
+	{
+		if (!gl_overbright.value)
+		{
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			glColor3f_fp(0.5, 0.5, 0.5);
+		}
+		R_DrawLightmapChains();
+		if (!gl_overbright.value)
+		{
+			glColor3f_fp(1, 1, 1);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		}
+		R_DrawTextureChains_White(model, chain);
+		return;
+	}
+
+	R_BeginTransparentDrawing(entalpha);
+
+	R_DrawTextureChains_NoTexture(model, chain);
+
+	// OpenGL 2 fast path
+	if (r_world_program != 0)
+	{
+		R_EndTransparentDrawing(entalpha);
+
+		R_DrawTextureChains_GLSL(model, ent, chain);
+		return;
+	}
+
+	if (gl_overbright.value)
+	{
+		/*
+		if (gl_texture_env_combine && gl_mtexable) //case 1: texture and lightmap in one pass, overbright using texture combiners
+		{
+			GL_EnableMultitexture();
+			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
+			glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
+			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_PREVIOUS_EXT);
+			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_TEXTURE);
+			glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 2.0f);
+			GL_DisableMultitexture();
+			R_DrawTextureChains_Multitexture(model, ent, chain);
+			GL_EnableMultitexture();
+			glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 1.0f);
+			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			GL_DisableMultitexture();
+			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		}
+		else
+		*/
+		if (entalpha < 1) //case 2: can't do multipass if entity has alpha, so just draw the texture
+		{
+			R_DrawTextureChains_TextureOnly(model, ent, chain);
+		}
+		else //case 3: texture in one pass, lightmap in second pass using 2x modulation blend func, fog in third pass
+		{
+			//to make fog work with multipass lightmapping, need to do one pass
+			//with no fog, one modulate pass with black fog, and one additive
+			//pass with black geometry and normal fog
+			Fog_DisableGFog();
+			R_DrawTextureChains_TextureOnly(model, ent, chain);
+			Fog_EnableGFog();
+			glDepthMask_fp(GL_FALSE);
+			glEnable_fp(GL_BLEND);
+			glBlendFunc_fp(GL_DST_COLOR, GL_SRC_COLOR); //2x modulate
+			Fog_StartAdditive();
+			R_DrawLightmapChains();
+			Fog_StopAdditive();
+			if (Fog_GetDensity() > 0)
+			{
+				glBlendFunc_fp(GL_ONE, GL_ONE); //add
+				glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+				glColor3f_fp(0, 0, 0);
+				R_DrawTextureChains_TextureOnly(model, ent, chain);
+				glColor3f_fp(1, 1, 1);
+				glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			}
+			glBlendFunc_fp(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glDisable_fp(GL_BLEND);
+			glDepthMask_fp(GL_TRUE);
+		}
+	}
+	else
+	{
+		if (gl_mtexable) //case 4: texture and lightmap in one pass, regular modulation
+		{
+			GL_EnableMultitexture();
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			GL_DisableMultitexture();
+			R_DrawTextureChains_Multitexture(model, ent, chain);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		}
+		else if (entalpha < 1) //case 5: can't do multipass if entity has alpha, so just draw the texture
+		{
+			R_DrawTextureChains_TextureOnly(model, ent, chain);
+		}
+		else //case 6: texture in one pass, lightmap in a second pass, fog in third pass
+		{
+			//to make fog work with multipass lightmapping, need to do one pass
+			//with no fog, one modulate pass with black fog, and one additive
+			//pass with black geometry and normal fog
+			Fog_DisableGFog();
+			R_DrawTextureChains_TextureOnly(model, ent, chain);
+			Fog_EnableGFog();
+			glDepthMask_fp(GL_FALSE);
+			glEnable_fp(GL_BLEND);
+			glBlendFunc_fp(GL_ZERO, GL_SRC_COLOR); //modulate
+			Fog_StartAdditive();
+			R_DrawLightmapChains();
+			Fog_StopAdditive();
+			if (Fog_GetDensity() > 0)
+			{
+				glBlendFunc_fp(GL_ONE, GL_ONE); //add
+				glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+				glColor3f_fp(0, 0, 0);
+				R_DrawTextureChains_TextureOnly(model, ent, chain);
+				glColor3f_fp(1, 1, 1);
+				glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			}
+			glBlendFunc_fp(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glDisable_fp(GL_BLEND);
+			glDepthMask_fp(GL_TRUE);
+		}
+	}
+
+	R_EndTransparentDrawing(entalpha);
+
+fullbrights:
+	if (r_fullbright.integer)
+	{
+		glDepthMask_fp(GL_FALSE);
+		glEnable_fp(GL_BLEND);
+		glBlendFunc_fp(GL_ONE, GL_ONE);
+		glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		glColor3f_fp(entalpha, entalpha, entalpha);
+		Fog_StartAdditive();
+		R_DrawTextureChains_Glow(model, ent, chain);
+		Fog_StopAdditive();
+		glColor3f_fp(1, 1, 1);
+		glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		glBlendFunc_fp(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glDisable_fp(GL_BLEND);
+		glDepthMask_fp(GL_TRUE);
+	}
+}
 
 /*
 ================
@@ -1831,6 +1830,7 @@ WORLD MODEL
 R_RecursiveWorldNode
 ================
 */
+/*
 static void R_RecursiveWorldNode (mnode_t *node)
 {
 	int		c, side;
@@ -1934,6 +1934,7 @@ static void R_RecursiveWorldNode (mnode_t *node)
 // recurse down the back side
 	R_RecursiveWorldNode (node->children[!side]);
 }
+*/
 
 /*
 =============

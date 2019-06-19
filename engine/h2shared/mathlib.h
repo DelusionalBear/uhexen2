@@ -138,6 +138,7 @@ static inline float _inl_VectorNormalize (vec3_t v)
 	return length;
 }
 #define VectorNormalize(a)	_inl_VectorNormalize((a))
+#define Q_rint(x) ((x) > 0 ? (int)((x) + 0.5) : (int)((x) - 0.5)) //johnfitz -- from joequake
 
 int Q_log2(int val);
 

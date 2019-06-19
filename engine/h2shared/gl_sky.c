@@ -26,13 +26,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	MAX_CLIP_VERTS 64
 
-float Fog_GetDensity(void);
-float *Fog_GetColor(void);
+GLfloat Fog_GetDensity(void);
+GLfloat *Fog_GetColor(void);
 
 extern	qmodel_t	*loadmodel;
 extern	int	rs_skypolys; //for r_speeds readout
 extern	int rs_skypasses; //for r_speeds readout
-float	skyflatcolor[3];
+GLfloat	skyflatcolor[3];
 float	skymins[2][6], skymaxs[2][6];
 
 char	skybox_name[32] = ""; //name of current skybox, or "" if no skybox
@@ -680,7 +680,7 @@ void Sky_EmitSkyBoxVertex (float s, float t, int axis)
 
 	t = 1.0 - t;
 	glTexCoord2f (s, t);
-	glVertex3fv (v);
+	glVertex3fv_fp(v);
 }
 
 /*
@@ -707,12 +707,12 @@ void Sky_DrawSkyBox (void)
 		skymaxs[0][i] = 1;
 		skymaxs[1][i] = 1;
 #endif
-		glBegin (GL_QUADS);
+		glBegin_fp(GL_QUADS);
 		Sky_EmitSkyBoxVertex (skymins[0][i], skymins[1][i], i);
 		Sky_EmitSkyBoxVertex (skymins[0][i], skymaxs[1][i], i);
 		Sky_EmitSkyBoxVertex (skymaxs[0][i], skymaxs[1][i], i);
 		Sky_EmitSkyBoxVertex (skymaxs[0][i], skymins[1][i], i);
-		glEnd ();
+		glEnd_fp();
 
 		rs_skypolys++;
 		rs_skypasses++;
@@ -722,20 +722,20 @@ void Sky_DrawSkyBox (void)
 			float *c;
 
 			c = Fog_GetColor();
-			glEnable (GL_BLEND);
-			glDisable (GL_TEXTURE_2D);
-			glColor4f (c[0],c[1],c[2], CLAMP(0.0,skyfog,1.0));
+			glEnable_fp(GL_BLEND);
+			glDisable_fp (GL_TEXTURE_2D);
+			glColor4f_fp (c[0],c[1],c[2], CLAMP(0.0,skyfog,1.0));
 
-			glBegin (GL_QUADS);
+			glBegin_fp(GL_QUADS);
 			Sky_EmitSkyBoxVertex (skymins[0][i], skymins[1][i], i);
 			Sky_EmitSkyBoxVertex (skymins[0][i], skymaxs[1][i], i);
 			Sky_EmitSkyBoxVertex (skymaxs[0][i], skymaxs[1][i], i);
 			Sky_EmitSkyBoxVertex (skymaxs[0][i], skymins[1][i], i);
-			glEnd ();
+			glEnd_fp();
 
-			glColor3f (1, 1, 1);
-			glEnable (GL_TEXTURE_2D);
-			glDisable (GL_BLEND);
+			glColor3f_fp(1, 1, 1);
+			glEnable_fp(GL_TEXTURE_2D);
+			glDisable_fp(GL_BLEND);
 
 			rs_skypasses++;
 		}
@@ -813,18 +813,18 @@ void Sky_DrawFaceQuad (glpoly_t *p)
 		GL_Bind (solidskytexture);
 		GL_EnableMultitexture();
 		GL_Bind (alphaskytexture);
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
+		glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
 
-		glBegin (GL_QUADS);
+		glBegin_fp(GL_QUADS);
 		for (i=0, v=p->verts[0] ; i<4 ; i++, v+=VERTEXSIZE)
 		{
 			Sky_GetTexCoord (v, 8, &s, &t);
 			GL_MTexCoord2fFunc (GL_TEXTURE0_ARB, s, t);
 			Sky_GetTexCoord (v, 16, &s, &t);
 			GL_MTexCoord2fFunc (GL_TEXTURE1_ARB, s, t);
-			glVertex3fv (v);
+			glVertex3fv_fp (v);
 		}
-		glEnd ();
+		glEnd_fp();
 
 		GL_DisableMultitexture();
 
@@ -836,33 +836,33 @@ void Sky_DrawFaceQuad (glpoly_t *p)
 		GL_Bind (solidskytexture);
 
 		if (r_skyalpha.value < 1.0)
-			glColor3f (1, 1, 1);
+			glColor3f_fp(1, 1, 1);
 
-		glBegin (GL_QUADS);
+		glBegin_fp (GL_QUADS);
 		for (i=0, v=p->verts[0] ; i<4 ; i++, v+=VERTEXSIZE)
 		{
 			Sky_GetTexCoord (v, 8, &s, &t);
 			glTexCoord2f (s, t);
-			glVertex3fv (v);
+			glVertex3fv_fp(v);
 		}
-		glEnd ();
+		glEnd_fp();
 
 		GL_Bind (alphaskytexture);
-		glEnable (GL_BLEND);
+		glEnable_fp(GL_BLEND);
 
 		if (r_skyalpha.value < 1.0)
-			glColor4f (1, 1, 1, r_skyalpha.value);
+			glColor4f_fp(1, 1, 1, r_skyalpha.value);
 
-		glBegin (GL_QUADS);
+		glBegin_fp(GL_QUADS);
 		for (i=0, v=p->verts[0] ; i<4 ; i++, v+=VERTEXSIZE)
 		{
 			Sky_GetTexCoord (v, 16, &s, &t);
 			glTexCoord2f (s, t);
-			glVertex3fv (v);
+			glVertex3fv_fp(v);
 		}
-		glEnd ();
+		glEnd_fp();
 
-		glDisable (GL_BLEND);
+		glDisable_fp(GL_BLEND);
 
 		rs_skypolys++;
 		rs_skypasses += 2;
@@ -873,18 +873,18 @@ void Sky_DrawFaceQuad (glpoly_t *p)
 		float *c;
 
 		c = Fog_GetColor();
-		glEnable (GL_BLEND);
-		glDisable (GL_TEXTURE_2D);
-		glColor4f (c[0],c[1],c[2], CLAMP(0.0,skyfog,1.0));
+		glEnable_fp(GL_BLEND);
+		glDisable_fp(GL_TEXTURE_2D);
+		glColor4f_fp(c[0],c[1],c[2], CLAMP(0.0,skyfog,1.0));
 
-		glBegin (GL_QUADS);
+		glBegin_fp(GL_QUADS);
 		for (i=0, v=p->verts[0] ; i<4 ; i++, v+=VERTEXSIZE)
-			glVertex3fv (v);
-		glEnd ();
+			glVertex3fv_fp(v);
+		glEnd_fp ();
 
-		glColor3f (1, 1, 1);
-		glEnable (GL_TEXTURE_2D);
-		glDisable (GL_BLEND);
+		glColor3f_fp (1, 1, 1);
+		glEnable_fp(GL_TEXTURE_2D);
+		glDisable_fp(GL_BLEND);
 
 		rs_skypasses++;
 	}
@@ -960,14 +960,14 @@ void Sky_DrawSkyLayers (void)
 	int i;
 
 	if (r_skyalpha.value < 1.0)
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 	for (i=0 ; i<6 ; i++)
 		if (skymins[0][i] < skymaxs[0][i] && skymins[1][i] < skymaxs[1][i])
 			Sky_DrawFace (i);
 
 	if (r_skyalpha.value < 1.0)
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+		glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 }
 
 /*
@@ -998,15 +998,15 @@ void Sky_DrawSky (void)
 	// process world and bmodels: draw flat-shaded sky surfs, and update skybounds
 	//
 	Fog_DisableGFog ();
-	glDisable (GL_TEXTURE_2D);
+	glDisable_fp(GL_TEXTURE_2D);
 	if (Fog_GetDensity() > 0)
-		glColor3fv (Fog_GetColor());
+		glColor3fv_fp(Fog_GetColor());
 	else
-		glColor3fv (skyflatcolor);
+		glColor3fv_fp(skyflatcolor);
 	Sky_ProcessTextureChains ();
 	Sky_ProcessEntities ();
-	glColor3f (1, 1, 1);
-	glEnable (GL_TEXTURE_2D);
+	glColor3f_fp(1, 1, 1);
+	glEnable_fp (GL_TEXTURE_2D);
 
 	//
 	// render slow sky: cloud layers or skybox

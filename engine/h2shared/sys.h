@@ -43,6 +43,7 @@ int Sys_CopyFile (const char *frompath, const char *topath);
 const char *Sys_FindFirstFile (const char *path, const char *pattern);
 const char *Sys_FindNextFile (void);
 void Sys_FindClose (void);
+int Sys_FileOpenWrite(const char *path);
 
 #if defined(PLATFORM_AMIGA) && !defined(SERVERONLY)
 qboolean Sys_PathExistsQuiet (const char *p);

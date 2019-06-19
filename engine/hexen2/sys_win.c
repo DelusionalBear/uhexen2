@@ -56,6 +56,9 @@ static HANDLE	tevent;
 
 static volatile int	sys_checksum;
 
+#define	MAX_HANDLES		32	/* johnfitz -- was 10 */
+static FILE		*sys_handles[MAX_HANDLES];
+
 
 /*
 ================
@@ -394,6 +397,34 @@ void Sys_Quit (void)
 		FreeConsole ();
 
 	exit (0);
+}
+
+static int findhandle2(void)
+{
+	int i;
+
+	for (i = 1; i < MAX_HANDLES; i++)
+	{
+		if (!sys_handles[i])
+			return i;
+	}
+	Sys_Error("out of handles");
+	return -1;
+}
+
+int Sys_FileOpenWrite(const char *path)
+{
+	FILE	*f;
+	int		i;
+
+	i = findhandle2();
+	f = fopen(path, "wb");
+
+	if (!f)
+		Sys_Error("Error opening %s: %s", path, strerror(errno));
+
+	sys_handles[i] = f;
+	return i;
 }
 
 

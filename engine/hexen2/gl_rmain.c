@@ -36,6 +36,7 @@ typedef struct {
 qboolean	overbright; //johnfitz
 float	entalpha; //johnfitz
 entity_t  *currententity;
+static GLuint r_alias_program;
 
 qboolean shading = true; //johnfitz -- if false, disable vertex shading for various reasons (fullbright, r_lightmap, showtris, etc)
 int rs_brushpolys, rs_aliaspolys, rs_skypolys, rs_particles, rs_fogpolys;
@@ -98,6 +99,7 @@ cvar_t	r_drawviewmodel = {"r_drawviewmodel", "1", CVAR_NONE};
 cvar_t	r_speeds = {"r_speeds", "0", CVAR_NONE};
 cvar_t	r_waterwarp = {"r_waterwarp", "0", CVAR_ARCHIVE};
 cvar_t	r_fullbright = {"r_fullbright", "0", CVAR_NONE};
+cvar_t	gl_fullbrights = { "gl_fullbrights", "1", CVAR_ARCHIVE };
 cvar_t	r_lightmap = {"r_lightmap", "0", CVAR_NONE};
 cvar_t	r_shadows = {"r_shadows", "0", CVAR_ARCHIVE};
 cvar_t	r_mirroralpha = {"r_mirroralpha", "1", CVAR_NONE};
@@ -133,6 +135,7 @@ cvar_t	gl_extra_dynamic_lights = {"gl_extra_dynamic_lights", "0", CVAR_ARCHIVE};
 cvar_t    r_lerpmodels = { "r_lerpmodels", "1", CVAR_NONE };
 cvar_t    gl_overbright_models = { "gl_overbright_models", "1", CVAR_ARCHIVE };
 qboolean r_drawflat_cheatsafe, r_fullbright_cheatsafe, r_lightmap_cheatsafe, r_drawworld_cheatsafe; //johnfitz
+qboolean gl_texture_env_add = false; //johnfitz
 //=============================================================================
 
 
@@ -155,6 +158,34 @@ qboolean R_CullBox (vec3_t mins, vec3_t maxs)
 	return false;
 }
 
+
+/*
+===============
+R_CullModelForEntity -- johnfitz -- uses correct bounds based on rotation
+===============
+*/
+qboolean R_CullModelForEntity(entity_t *e)
+{
+	vec3_t mins, maxs;
+
+	if (e->angles[0] || e->angles[2]) //pitch or roll
+	{
+		VectorAdd(e->origin, e->model->rmins, mins);
+		VectorAdd(e->origin, e->model->rmaxs, maxs);
+	}
+	else if (e->angles[1]) //yaw
+	{
+		VectorAdd(e->origin, e->model->ymins, mins);
+		VectorAdd(e->origin, e->model->ymaxs, maxs);
+	}
+	else //no rotation
+	{
+		VectorAdd(e->origin, e->model->mins, mins);
+		VectorAdd(e->origin, e->model->maxs, maxs);
+	}
+
+	return R_CullBox(mins, maxs);
+}
 
 /*
 =================
@@ -581,10 +612,10 @@ void GL_DrawAliasFrame(aliashdr_t *paliashdr, lerpdata_t lerpdata)
 		if (count < 0)
 		{
 			count = -count;
-			glBegin(GL_TRIANGLE_FAN);
+			glBegin_fp(GL_TRIANGLE_FAN);
 		}
 		else
-			glBegin(GL_TRIANGLE_STRIP);
+			glBegin_fp(GL_TRIANGLE_STRIP);
 
 		do
 		{
@@ -596,7 +627,7 @@ void GL_DrawAliasFrame(aliashdr_t *paliashdr, lerpdata_t lerpdata)
 				GL_MTexCoord2fFunc(GL_TEXTURE1_ARB, u, v);
 			}
 			else
-				glTexCoord2f(u, v);
+				glTexCoord2f_fp(u, v);
 
 			commands += 2;
 
@@ -605,27 +636,27 @@ void GL_DrawAliasFrame(aliashdr_t *paliashdr, lerpdata_t lerpdata)
 				if (r_drawflat_cheatsafe)
 				{
 					srand(count * (unsigned int)(src_offset_t)commands);
-					glColor3f(rand() % 256 / 255.0, rand() % 256 / 255.0, rand() % 256 / 255.0);
+					glColor3f_fp(rand() % 256 / 255.0, rand() % 256 / 255.0, rand() % 256 / 255.0);
 				}
 				else if (lerping)
 				{
 					vertcolor[0] = (shadedots[verts1->lightnormalindex] * iblend + shadedots[verts2->lightnormalindex] * blend) * lightcolor[0];
 					vertcolor[1] = (shadedots[verts1->lightnormalindex] * iblend + shadedots[verts2->lightnormalindex] * blend) * lightcolor[1];
 					vertcolor[2] = (shadedots[verts1->lightnormalindex] * iblend + shadedots[verts2->lightnormalindex] * blend) * lightcolor[2];
-					glColor4fv(vertcolor);
+					glColor4fv_fp(vertcolor);
 				}
 				else
 				{
 					vertcolor[0] = shadedots[verts1->lightnormalindex] * lightcolor[0];
 					vertcolor[1] = shadedots[verts1->lightnormalindex] * lightcolor[1];
 					vertcolor[2] = shadedots[verts1->lightnormalindex] * lightcolor[2];
-					glColor4fv(vertcolor);
+					glColor4fv_fp(vertcolor);
 				}
 			}
 
 			if (lerping)
 			{
-				glVertex3f(verts1->v[0] * iblend + verts2->v[0] * blend,
+				glVertex3f_fp(verts1->v[0] * iblend + verts2->v[0] * blend,
 					verts1->v[1] * iblend + verts2->v[1] * blend,
 					verts1->v[2] * iblend + verts2->v[2] * blend);
 				verts1++;
@@ -633,12 +664,12 @@ void GL_DrawAliasFrame(aliashdr_t *paliashdr, lerpdata_t lerpdata)
 			}
 			else
 			{
-				glVertex3f(verts1->v[0], verts1->v[1], verts1->v[2]);
+				glVertex3f_fp(verts1->v[0], verts1->v[1], verts1->v[2]);
 				verts1++;
 			}
 		} while (--count);
 
-		glEnd();
+		glEnd_fp();
 	}
 
 	rs_aliaspasses += paliashdr->numtris;
@@ -785,6 +816,88 @@ void R_SetupAliasFrame(aliashdr_t *paliashdr, int frame, lerpdata_t *lerpdata)
 	}
 }
 
+/*
+=================
+R_SetupAliasLighting -- johnfitz -- broken out from R_DrawAliasModel and rewritten
+=================
+*/
+void R_SetupAliasLighting(entity_t	*e)
+{
+	vec3_t		dist;
+	float		add;
+	int			i;
+	int		quantizedangle;
+	float		radiansangle;
+
+	R_LightPoint(e->origin);
+
+	//add dlights
+	for (i = 0; i < MAX_DLIGHTS; i++)
+	{
+		if (cl_dlights[i].die >= cl.time)
+		{
+			VectorSubtract(currententity->origin, cl_dlights[i].origin, dist);
+			add = cl_dlights[i].radius - VectorLength(dist);
+			if (add > 0)
+				VectorMA(lightcolor, add, cl_dlights[i].color, lightcolor);
+		}
+	}
+
+	// minimum light value on gun (24)
+	if (e == &cl.viewent)
+	{
+		add = 72.0f - (lightcolor[0] + lightcolor[1] + lightcolor[2]);
+		if (add > 0.0f)
+		{
+			lightcolor[0] += add / 3.0f;
+			lightcolor[1] += add / 3.0f;
+			lightcolor[2] += add / 3.0f;
+		}
+	}
+
+	// minimum light value on players (8)
+	if (currententity > cl_entities && currententity <= cl_entities + cl.maxclients)
+	{
+		add = 24.0f - (lightcolor[0] + lightcolor[1] + lightcolor[2]);
+		if (add > 0.0f)
+		{
+			lightcolor[0] += add / 3.0f;
+			lightcolor[1] += add / 3.0f;
+			lightcolor[2] += add / 3.0f;
+		}
+	}
+
+	// clamp lighting so it doesn't overbright as much (96)
+	if (overbright)
+	{
+		add = 288.0f / (lightcolor[0] + lightcolor[1] + lightcolor[2]);
+		if (add < 1.0f)
+			VectorScale(lightcolor, add, lightcolor);
+	}
+
+	//hack up the brightness when fullbrights but no overbrights (256)
+	if (gl_fullbrights.value && !gl_overbright_models.value)
+		if (e->model->flags & MOD_FBRIGHTHACK)
+		{
+			lightcolor[0] = 256.0f;
+			lightcolor[1] = 256.0f;
+			lightcolor[2] = 256.0f;
+		}
+
+	quantizedangle = ((int)(e->angles[1] * (SHADEDOT_QUANT / 360.0))) & (SHADEDOT_QUANT - 1);
+
+	//ericw -- shadevector is passed to the shader to compute shadedots inside the
+	//shader, see GLAlias_CreateShaders()
+	radiansangle = (quantizedangle / 16.0) * 2.0 * 3.14159;
+	shadevector[0] = cos(-radiansangle);
+	shadevector[1] = sin(-radiansangle);
+	shadevector[2] = 1;
+	VectorNormalize(shadevector);
+	//ericw --
+
+	shadedots = r_avertexnormal_dots[quantizedangle];
+	VectorScale(lightcolor, 1.0f / 200.0f, lightcolor);
+}
 
 /*
 =================
@@ -815,18 +928,18 @@ void R_DrawAliasModel(entity_t *e)
 	//
 	// transform it
 	//
-	glPushMatrix();
+	glPushMatrix_fp();
 	R_RotateForEntity(lerpdata.origin, lerpdata.angles);
-	glTranslatef(paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2]);
-	glScalef(paliashdr->scale[0], paliashdr->scale[1], paliashdr->scale[2]);
+	glTranslatef_fp(paliashdr->scale_origin[0], paliashdr->scale_origin[1], paliashdr->scale_origin[2]);
+	glScalef_fp(paliashdr->scale[0], paliashdr->scale[1], paliashdr->scale[2]);
 
 	//
 	// random stuff
 	//
 	if (gl_smoothmodels.value && !r_drawflat_cheatsafe)
-		glShadeModel(GL_SMOOTH);
+		glShadeModel_fp(GL_SMOOTH);
 	if (gl_affinemodels.value)
-		glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
+		glHint_fp(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
 	overbright = gl_overbright_models.value;
 	shading = true;
 
@@ -842,11 +955,11 @@ void R_DrawAliasModel(entity_t *e)
 	if (entalpha < 1)
 	{
 		if (!gl_texture_env_combine) overbright = false; //overbright can't be done in a single pass without combiners
-		glDepthMask(GL_FALSE);
-		glEnable(GL_BLEND);
+		glDepthMask_fp(GL_FALSE);
+		glEnable_fp(GL_BLEND);
 	}
 	else if (alphatest)
-		glEnable(GL_ALPHA_TEST);
+		glEnable_fp(GL_ALPHA_TEST);
 
 	//
 	// set up lighting
@@ -882,40 +995,40 @@ void R_DrawAliasModel(entity_t *e)
 	//
 	if (r_drawflat_cheatsafe)
 	{
-		glDisable(GL_TEXTURE_2D);
+		glDisable_fp(GL_TEXTURE_2D);
 		GL_DrawAliasFrame(paliashdr, lerpdata);
-		glEnable(GL_TEXTURE_2D);
+		glEnable_fp(GL_TEXTURE_2D);
 		srand((int)(cl.time * 1000)); //restore randomness
 	}
 	else if (r_fullbright_cheatsafe)
 	{
 		GL_Bind(tx);
 		shading = false;
-		glColor4f(1, 1, 1, entalpha);
+		glColor4f_fp(1, 1, 1, entalpha);
 		GL_DrawAliasFrame(paliashdr, lerpdata);
 		if (fb)
 		{
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 			GL_Bind(fb);
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_ONE, GL_ONE);
-			glDepthMask(GL_FALSE);
-			glColor3f(entalpha, entalpha, entalpha);
+			glEnable_fp(GL_BLEND);
+			glBlendFunc_fp(GL_ONE, GL_ONE);
+			glDepthMask_fp(GL_FALSE);
+			glColor3f_fp(entalpha, entalpha, entalpha);
 			Fog_StartAdditive();
 			GL_DrawAliasFrame(paliashdr, lerpdata);
 			Fog_StopAdditive();
-			glDepthMask(GL_TRUE);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			glDisable(GL_BLEND);
+			glDepthMask_fp(GL_TRUE);
+			glBlendFunc_fp(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glDisable_fp(GL_BLEND);
 		}
 	}
 	else if (r_lightmap_cheatsafe)
 	{
-		glDisable(GL_TEXTURE_2D);
+		glDisable_fp(GL_TEXTURE_2D);
 		shading = false;
-		glColor3f(1, 1, 1);
+		glColor3f_fp(1, 1, 1);
 		GL_DrawAliasFrame(paliashdr, lerpdata);
-		glEnable(GL_TEXTURE_2D);
+		glEnable_fp(GL_TEXTURE_2D);
 	}
 	// call fast path if possible. if the shader compliation failed for some reason,
 	// r_alias_program will be 0.
@@ -928,85 +1041,85 @@ void R_DrawAliasModel(entity_t *e)
 		if (gl_texture_env_combine && gl_mtexable && gl_texture_env_add && fb) //case 1: everything in one pass
 		{
 			GL_Bind(tx);
-			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
-			glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
-			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_TEXTURE);
-			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_PRIMARY_COLOR_EXT);
-			glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 2.0f);
+			glTexEnvi_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
+			glTexEnvi_fp(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
+			glTexEnvi_fp(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_TEXTURE);
+			glTexEnvi_fp(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_PRIMARY_COLOR_EXT);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 2.0f);
 			GL_EnableMultitexture(); // selects TEXTURE1
 			GL_Bind(fb);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD);
-			glEnable(GL_BLEND);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD);
+			glEnable_fp(GL_BLEND);
 			GL_DrawAliasFrame(paliashdr, lerpdata);
-			glDisable(GL_BLEND);
+			glDisable_fp(GL_BLEND);
 			GL_DisableMultitexture();
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 		}
 		else if (gl_texture_env_combine) //case 2: overbright in one pass, then fullbright pass
 		{
 			// first pass
 			GL_Bind(tx);
-			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
-			glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
-			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_TEXTURE);
-			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_PRIMARY_COLOR_EXT);
-			glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 2.0f);
+			glTexEnvi_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
+			glTexEnvi_fp(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
+			glTexEnvi_fp(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_TEXTURE);
+			glTexEnvi_fp(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_PRIMARY_COLOR_EXT);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 2.0f);
 			GL_DrawAliasFrame(paliashdr, lerpdata);
-			glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 1.0f);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 1.0f);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 			// second pass
 			if (fb)
 			{
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+				glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 				GL_Bind(fb);
-				glEnable(GL_BLEND);
-				glBlendFunc(GL_ONE, GL_ONE);
-				glDepthMask(GL_FALSE);
+				glEnable_fp(GL_BLEND);
+				glBlendFunc_fp(GL_ONE, GL_ONE);
+				glDepthMask_fp(GL_FALSE);
 				shading = false;
-				glColor3f(entalpha, entalpha, entalpha);
+				glColor3f_fp(entalpha, entalpha, entalpha);
 				Fog_StartAdditive();
 				GL_DrawAliasFrame(paliashdr, lerpdata);
 				Fog_StopAdditive();
-				glDepthMask(GL_TRUE);
-				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				glDisable(GL_BLEND);
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+				glDepthMask_fp(GL_TRUE);
+				glBlendFunc_fp(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				glDisable_fp(GL_BLEND);
+				glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 			}
 		}
 		else //case 3: overbright in two passes, then fullbright pass
 		{
 			// first pass
 			GL_Bind(tx);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 			GL_DrawAliasFrame(paliashdr, lerpdata);
 			// second pass -- additive with black fog, to double the object colors but not the fog color
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_ONE, GL_ONE);
-			glDepthMask(GL_FALSE);
+			glEnable_fp(GL_BLEND);
+			glBlendFunc_fp(GL_ONE, GL_ONE);
+			glDepthMask_fp(GL_FALSE);
 			Fog_StartAdditive();
 			GL_DrawAliasFrame(paliashdr, lerpdata);
 			Fog_StopAdditive();
-			glDepthMask(GL_TRUE);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			glDisable(GL_BLEND);
+			glDepthMask_fp(GL_TRUE);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			glBlendFunc_fp(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glDisable_fp(GL_BLEND);
 			// third pass
 			if (fb)
 			{
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+				glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 				GL_Bind(fb);
-				glEnable(GL_BLEND);
-				glBlendFunc(GL_ONE, GL_ONE);
-				glDepthMask(GL_FALSE);
+				glEnable_fp(GL_BLEND);
+				glBlendFunc_fp(GL_ONE, GL_ONE);
+				glDepthMask_fp(GL_FALSE);
 				shading = false;
-				glColor3f(entalpha, entalpha, entalpha);
+				glColor3f_fp(entalpha, entalpha, entalpha);
 				Fog_StartAdditive();
 				GL_DrawAliasFrame(paliashdr, lerpdata);
 				Fog_StopAdditive();
-				glDepthMask(GL_TRUE);
-				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				glDisable(GL_BLEND);
-				glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+				glDepthMask_fp(GL_TRUE);
+				glBlendFunc_fp(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				glDisable_fp(GL_BLEND);
+				glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 			}
 		}
 	}
@@ -1016,51 +1129,51 @@ void R_DrawAliasModel(entity_t *e)
 		{
 			GL_DisableMultitexture(); // selects TEXTURE0
 			GL_Bind(tx);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 			GL_EnableMultitexture(); // selects TEXTURE1
 			GL_Bind(fb);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD);
-			glEnable(GL_BLEND);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_ADD);
+			glEnable_fp(GL_BLEND);
 			GL_DrawAliasFrame(paliashdr, lerpdata);
-			glDisable(GL_BLEND);
+			glDisable_fp(GL_BLEND);
 			GL_DisableMultitexture();
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 		}
 		else //case 5: fullbright mask without multitexture
 		{
 			// first pass
 			GL_Bind(tx);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 			GL_DrawAliasFrame(paliashdr, lerpdata);
 			// second pass
 			if (fb)
 			{
 				GL_Bind(fb);
-				glEnable(GL_BLEND);
-				glBlendFunc(GL_ONE, GL_ONE);
-				glDepthMask(GL_FALSE);
+				glEnable_fp(GL_BLEND);
+				glBlendFunc_fp(GL_ONE, GL_ONE);
+				glDepthMask_fp(GL_FALSE);
 				shading = false;
-				glColor3f(entalpha, entalpha, entalpha);
+				glColor3f_fp(entalpha, entalpha, entalpha);
 				Fog_StartAdditive();
 				GL_DrawAliasFrame(paliashdr, lerpdata);
 				Fog_StopAdditive();
-				glDepthMask(GL_TRUE);
-				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-				glDisable(GL_BLEND);
+				glDepthMask_fp(GL_TRUE);
+				glBlendFunc_fp(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				glDisable_fp(GL_BLEND);
 			}
 		}
 	}
 
 cleanup:
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-	glShadeModel(GL_FLAT);
-	glDepthMask(GL_TRUE);
-	glDisable(GL_BLEND);
+	glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	glHint_fp(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+	glShadeModel_fp(GL_FLAT);
+	glDepthMask_fp(GL_TRUE);
+	glDisable_fp(GL_BLEND);
 	if (alphatest)
-		glDisable(GL_ALPHA_TEST);
-	glColor3f(1, 1, 1);
-	glPopMatrix();
+		glDisable_fp(GL_ALPHA_TEST);
+	glColor3f_fp(1, 1, 1);
+	glPopMatrix_fp();
 }
 
 //=============================================================================

@@ -70,23 +70,23 @@ void TexMgr_SetFilterModes (gltexture_t *glt)
 
 	if (glt->flags & TEXPREF_NEAREST)
 	{
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	}
 	else if (glt->flags & TEXPREF_LINEAR)
 	{
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	}
 	else if (glt->flags & TEXPREF_MIPMAP)
 	{
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].minfilter);
+		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
+		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].minfilter);
 	}
 	else
 	{
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].magfilter);
+		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
+		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].magfilter);
 	}
 
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, gl_texture_anisotropy.value);
@@ -306,7 +306,7 @@ gltexture_t *TexMgr_NewTexture (void)
 	glt->next = active_gltextures;
 	active_gltextures = glt;
 
-	glGenTextures(1, &glt->texnum);
+	glGenTextures_fp(1, &glt->texnum);
 	numgltextures++;
 	return glt;
 }
@@ -332,7 +332,7 @@ void TexMgr_FreeTexture (gltexture_t *kill)
 		kill->next = free_gltextures;
 		free_gltextures = kill;
 
-		glDeleteTextures(1, &kill->texnum);
+		glDeleteTextures_fp(1, &kill->texnum);
 		numgltextures--;
 		return;
 	}
@@ -344,7 +344,7 @@ void TexMgr_FreeTexture (gltexture_t *kill)
 			kill->next = free_gltextures;
 			free_gltextures = kill;
 
-			glDeleteTextures(1, &kill->texnum);
+			glDeleteTextures_fp(1, &kill->texnum);
 			numgltextures--;
 			return;
 		}
@@ -409,7 +409,7 @@ void TexMgr_LoadPalette (void)
 	int i, mark;
 	FILE *f;
 
-	COM_FOpenFile ("gfx/palette.lmp", &f);
+	COM_FOpenFile ("gfx/palette.lmp", &f, NULL);
 	if (!f)
 		Sys_Error ("Couldn't load gfx/palette.lmp");
 
@@ -555,7 +555,7 @@ void TexMgr_Init (void)
 	Cmd_AddCommand ("imagedump", &TexMgr_Imagedump_f);
 
 	// poll max size from hardware
-	glGetIntegerv (GL_MAX_TEXTURE_SIZE, &gl_hardware_maxsize);
+	glGetIntegerv_fp (GL_MAX_TEXTURE_SIZE, &gl_hardware_maxsize);
 
 	// load notexture images
 	notexture = TexMgr_LoadImage (NULL, "notexture", 2, 2, SRC_RGBA, notexture_data, "", (unsigned)notexture_data, TEXPREF_NEAREST | TEXPREF_PERSIST | TEXPREF_NOPICMIP);
@@ -1291,7 +1291,7 @@ void TexMgr_ReloadImages (void)
 
 	for (glt=active_gltextures; glt; glt=glt->next)
 	{
-		glGenTextures(1, &glt->texnum);
+		glGenTextures_fp(1, &glt->texnum);
 		TexMgr_ReloadImage (glt, -1, -1);
 	}
 }
@@ -1360,7 +1360,7 @@ void GL_DisableMultitexture(void)
 {
 	if (mtexenabled)
 	{
-		glDisable(GL_TEXTURE_2D);
+		glDisable_fp(GL_TEXTURE_2D);
 		GL_SelectTexture(TEXTURE0); //johnfitz -- no longer SGIS specific
 		mtexenabled = false;
 	}
@@ -1376,7 +1376,7 @@ void GL_EnableMultitexture(void)
 	if (gl_mtexable)
 	{
 		GL_SelectTexture(TEXTURE1); //johnfitz -- no longer SGIS specific
-		glEnable(GL_TEXTURE_2D);
+		glEnable_fp(GL_TEXTURE_2D);
 		mtexenabled = true;
 	}
 }
@@ -1394,7 +1394,7 @@ void GL_Bind (gltexture_t *texture)
 	if (texture->texnum != currenttexture)
 	{
 		currenttexture = texture->texnum;
-		glBindTexture (GL_TEXTURE_2D, currenttexture);
+		glBindTexture_fp (GL_TEXTURE_2D, currenttexture);
 		texture->visframe = r_framecount;
 	}
 }

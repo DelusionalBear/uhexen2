@@ -136,7 +136,7 @@ typedef struct
 	int minfilter;
 	char *name;
 } glmode_t;
-glmode_t modes[] = {
+static glmode_t modes[] = {
 	{GL_NEAREST, GL_NEAREST,				"GL_NEAREST"},
 	{GL_NEAREST, GL_NEAREST_MIPMAP_NEAREST,	"GL_NEAREST_MIPMAP_NEAREST"},
 	{GL_NEAREST, GL_NEAREST_MIPMAP_LINEAR,	"GL_NEAREST_MIPMAP_LINEAR"},
@@ -144,6 +144,21 @@ glmode_t modes[] = {
 	{GL_LINEAR,  GL_LINEAR_MIPMAP_NEAREST,	"GL_LINEAR_MIPMAP_NEAREST"},
 	{GL_LINEAR,  GL_LINEAR_MIPMAP_LINEAR,	"GL_LINEAR_MIPMAP_LINEAR"},
 };
+
+//johnfitz -- GL_EXT_texture_env_combine
+//the values for GL_ARB_ are identical
+#define GL_COMBINE_EXT		0x8570
+#define GL_COMBINE_RGB_EXT	0x8571
+#define GL_COMBINE_ALPHA_EXT	0x8572
+#define GL_RGB_SCALE_EXT	0x8573
+#define GL_CONSTANT_EXT		0x8576
+#define GL_PRIMARY_COLOR_EXT	0x8577
+#define GL_PREVIOUS_EXT		0x8578
+#define GL_SOURCE0_RGB_EXT	0x8580
+#define GL_SOURCE1_RGB_EXT	0x8581
+#define GL_SOURCE0_ALPHA_EXT	0x8588
+#define GL_SOURCE1_ALPHA_EXT	0x8589
+
 
 typedef struct cachepic_s
 {
@@ -162,6 +177,7 @@ extern int rs_brushpolys, rs_aliaspolys, rs_skypolys, rs_particles, rs_fogpolys;
 extern    qboolean        mtexenabled;
 extern int rs_dynamiclightmaps, rs_brushpasses, rs_aliaspasses, rs_skypasses;
 extern    entity_t        *currententity;
+extern qboolean gl_texture_env_add; // for GL_EXT_texture_env_add
 
 /* particle enums and types: note that hexen2 and
    hexenworld versions of these are different!! */
@@ -282,6 +298,7 @@ extern	cvar_t	gl_coloredlight;
 extern	cvar_t	gl_colored_dynamic_lights;
 extern	cvar_t	gl_extra_dynamic_lights;
 extern	cvar_t	gl_lightmapfmt;
+extern	cvar_t	gl_max_size;
 
 /* other globals */
 extern	int		gl_coloredstatic;	/* value of gl_coloredlight stored at level start */
@@ -365,6 +382,6 @@ void R_InitNetgraphTexture (void);
 
 void R_ReadPointFile_f (void);
 void R_TranslatePlayerSkin (int playernum);
-
+qboolean R_CullModelForEntity(entity_t *e);
 #endif	/* GLQUAKE_H */
 

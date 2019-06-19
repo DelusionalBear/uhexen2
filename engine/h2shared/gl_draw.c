@@ -1630,11 +1630,11 @@ static void GL_Upload32 (unsigned int *data, gltexture_t *glt)
 	if (scaled_height < 1)
 		scaled_height = 1;
 
-	if (scaled_width > gl_max_size)
-		scaled_width = gl_max_size;
+	if (scaled_width > gl_max_size.integer)
+		scaled_width = gl_max_size.integer;
 
-	if (scaled_height > gl_max_size)
-		scaled_height = gl_max_size;
+	if (scaled_height > gl_max_size.integer)
+		scaled_height = gl_max_size.integer;
 
 	// 3dfx has some aspect ratio constraints.
 	// can't go beyond 8 to 1 or below 1 to 8.

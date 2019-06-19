@@ -279,6 +279,37 @@ const char *COM_FileGetExtension (const char *in)
 }
 
 /*
+===========
+COM_FOpenFile
+
+If the requested file is inside a packfile, a new FILE * will be opened
+into the file.
+===========
+*/
+int COM_FOpenFile(const char *filename, FILE **file, unsigned int *path_id)
+{
+	return COM_FindFile(filename, NULL, file, path_id);
+}
+
+/*
+============
+COM_CloseFile
+
+If it is a pak file handle, don't really close it
+============
+*/
+void COM_CloseFile(int h)
+{
+	searchpath_t	*s;
+
+	for (s = com_searchpaths; s; s = s->next)
+		if (s->pack && s->pack->handle == h)
+			return;
+
+	Sys_FileClose(h);
+}
+
+/*
 ============
 COM_ExtractExtension
 ============

@@ -52,6 +52,7 @@ int		entity_file_size;
 
 static qboolean	spr_reload_only = false;
 
+texture_t *r_notexture_mip2; //johnfitz -- used for non-lightmapped surfs with a missing texture
 
 /*
 ===============
@@ -373,6 +374,19 @@ qmodel_t *Mod_ForName (const char *name, qboolean crash)
 
 static byte	*mod_base;
 
+/*
+=================
+Mod_CheckFullbrights -- johnfitz
+=================
+*/
+qboolean Mod_CheckFullbrights(byte *pixels, int count)
+{
+	int i;
+	for (i = 0; i < count; i++)
+		if (*pixels++ > 223)
+			return true;
+	return false;
+}
 
 /*
 =================
