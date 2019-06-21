@@ -25,7 +25,6 @@
 #include "q_ctype.h"
 #include "filenames.h"
 
-
 int		safemode;
 
 
@@ -302,7 +301,7 @@ void COM_CloseFile(int h)
 {
 	searchpath_t	*s;
 
-	for (s = com_searchpaths; s; s = s->next)
+	for (s = fs_searchpaths; s; s = s->next)
 		if (s->pack && s->pack->handle == h)
 			return;
 

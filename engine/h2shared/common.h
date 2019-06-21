@@ -114,30 +114,18 @@ char	*va (const char *format, ...) FUNC_PRINTF(1,2);
 int COM_StrCompare (const void *arg1, const void *arg2);
 /* quick'n'dirty string comparison function for use with qsort */
 
-typedef struct
-{
-	char	name[MAX_QPATH];
-	int		filepos, filelen;
-} packfile_t;
-
-typedef struct pack_s
-{
-	char	filename[MAX_OSPATH];
-	int		handle;
-	int		numfiles;
-	packfile_t	*files;
-} pack_t;
-
 typedef struct searchpath_s
 {
-	unsigned int path_id;	// identifier assigned to the game directory
-					// Note that <install_dir>/game1 and
-					// <userdir>/game1 have the same id.
-	char	filename[MAX_OSPATH];
-	pack_t	*pack;			// only one of filename / pack will be used
+	unsigned int	path_id;	/* identifier assigned to the game directory
+					 *	Note that <install_dir>/game1 and
+					 *	<userdir>/game1 have the same id. */
+	char		filename[MAX_OSPATH];
+	struct pack_s		*pack;	/* only one of filename / pack will be used */
 	struct searchpath_s	*next;
 } searchpath_t;
 
+extern searchpath_t *fs_searchpaths;
+extern searchpath_t *fs_base_searchpaths;
 
 #endif	/* __HX2_COMMON_H */
 

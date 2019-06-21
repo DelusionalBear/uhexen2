@@ -29,30 +29,6 @@
 #endif
 #include "filenames.h"
 
-typedef struct
-{
-	char	name[MAX_QPATH];
-	int	filepos, filelen;
-} pakfiles_t;
-
-typedef struct pack_s
-{
-	char	filename[MAX_OSPATH];
-	FILE	*handle;
-	int	numfiles;
-	pakfiles_t	*files;
-} pack_t;
-
-typedef struct searchpath_s
-{
-	unsigned int	path_id;	/* identifier assigned to the game directory
-					 *	Note that <install_dir>/game1 and
-					 *	<userdir>/game1 have the same id. */
-	char		filename[MAX_OSPATH];
-	struct pack_s		*pack;	/* only one of filename / pack will be used */
-	struct searchpath_s	*next;
-} searchpath_t;
-
 static searchpath_t	*fs_searchpaths;
 static searchpath_t	*fs_base_searchpaths;	/* without gamedirs */
 
