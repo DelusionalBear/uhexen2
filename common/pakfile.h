@@ -43,20 +43,6 @@ typedef struct
 	int		dirlen;
 } dpackheader_t;
 
-typedef struct
-{
-	char	name[MAX_QPATH];
-	int	filepos, filelen;
-} pakfiles_t;
-
-typedef struct pack_s
-{
-	char	filename[MAX_OSPATH];
-	FILE	*handle;
-	int	numfiles;
-	pakfiles_t	*files;
-} pack_t;
-
 #define	packfile_t	dpackfile_t
 #define	packheader_t	dpackheader_t
 #define	MAX_FILES_IN_PACK	2048

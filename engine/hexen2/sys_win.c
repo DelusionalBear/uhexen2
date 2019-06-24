@@ -412,6 +412,29 @@ static int findhandle2(void)
 	return -1;
 }
 
+int Sys_FileOpenRead(const char *path, int *hndl)
+{
+	FILE	*f;
+	int	i, retval;
+
+	i = findhandle2();
+	f = fopen(path, "rb");
+
+	if (!f)
+	{
+		*hndl = -1;
+		retval = -1;
+	}
+	else
+	{
+		sys_handles[i] = f;
+		*hndl = i;
+		retval = Sys_filelength(f);
+	}
+
+	return retval;
+}
+
 int Sys_FileOpenWrite(const char *path)
 {
 	FILE	*f;
@@ -427,6 +450,37 @@ int Sys_FileOpenWrite(const char *path)
 	return i;
 }
 
+void Sys_FileClose(int handle)
+{
+	fclose(sys_handles[handle]);
+	sys_handles[handle] = NULL;
+}
+
+void Sys_FileSeek(int handle, int position)
+{
+	fseek(sys_handles[handle], position, SEEK_SET);
+}
+
+int Sys_FileTime(const char *path)
+{
+	FILE	*f;
+
+	f = fopen(path, "rb");
+
+	if (f)
+	{
+		fclose(f);
+		return 1;
+	}
+
+	return -1;
+}
+
+
+int Sys_FileWrite(int handle, const void *data, int count)
+{
+	return fwrite(data, 1, count, sys_handles[handle]);
+}
 
 /*
 ================

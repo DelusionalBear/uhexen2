@@ -40,15 +40,16 @@ typedef ret (APIENTRY *func##_f) params; \
 __GL_FUNC_EXTERN func##_f func##_fp;
 #endif
 
-GL_FUNCTION(void, glBindTexture, (GLenum,GLuint))
-GL_FUNCTION(void, glDeleteTextures, (GLsizei,const GLuint *))
-GL_FUNCTION(void, glGenTextures, (GLsizei,GLuint *))
-GL_FUNCTION(void, glTexParameterf, (GLenum,GLenum,GLfloat))
-GL_FUNCTION(void, glTexEnvf, (GLenum,GLenum,GLfloat))
+GL_FUNCTION(void, glBindTexture, (GLenum, GLuint))
+GL_FUNCTION(void, glDeleteTextures, (GLsizei, const GLuint *))
+GL_FUNCTION(void, glGenTextures, (GLsizei, GLuint *))
+GL_FUNCTION(void, glTexParameterf, (GLenum, GLenum, GLfloat))
+GL_FUNCTION(void, glTexEnvf, (GLenum, GLenum, GLfloat))
 GL_FUNCTION(void, glTexEnvi, (GLenum, GLenum, GLuint))
-GL_FUNCTION(void, glScalef, (GLfloat,GLfloat,GLfloat))
-GL_FUNCTION(void, glTexImage2D, (GLenum,GLint,GLint,GLsizei,GLsizei,GLint,GLenum,GLenum,const GLvoid*))
-GL_FUNCTION(void, glTexSubImage2D, (GLenum,GLint,GLint,GLint,GLsizei,GLsizei,GLenum,GLenum,const GLvoid *))
+GL_FUNCTION(void, glScalef, (GLfloat, GLfloat, GLfloat))
+GL_FUNCTION(void, glTexImage2D, (GLenum, GLint, GLint, GLsizei, GLsizei, GLint, GLenum, GLenum, const GLvoid*))
+GL_FUNCTION(void, glTexSubImage2D, (GLenum, GLint, GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, const GLvoid *))
+GL_FUNCTION(void, glGetTexImage, (GLenum target, GLint level, GLenum format, GLenum type, GLvoid *pixels));
 
 GL_FUNCTION(void, glBegin, (GLenum))
 GL_FUNCTION(void, glEnd, (void))
@@ -60,37 +61,43 @@ GL_FUNCTION(void, glFinish, (void))
 GL_FUNCTION(void, glFlush, (void))
 GL_FUNCTION(void, glClear, (GLbitfield))
 
-GL_FUNCTION(void, glVertex2f, (GLfloat,GLfloat))
-GL_FUNCTION(void, glVertex3f, (GLfloat,GLfloat,GLfloat))
+GL_FUNCTION(void, glVertex2f, (GLfloat, GLfloat))
+GL_FUNCTION(void, glVertex3f, (GLfloat, GLfloat, GLfloat))
 GL_FUNCTION(void, glVertex3fv, (const GLfloat *))
-GL_FUNCTION(void, glTexCoord2f, (GLfloat,GLfloat))
+GL_FUNCTION(void, glTexCoord2f, (GLfloat, GLfloat))
 GL_FUNCTION(void, glTexCoord2fv, (const GLfloat *))
-GL_FUNCTION(void, glColor4f, (GLfloat,GLfloat,GLfloat,GLfloat))
+GL_FUNCTION(void, glColor4f, (GLfloat, GLfloat, GLfloat, GLfloat))
 GL_FUNCTION(void, glColor4fv, (const GLfloat *))
-GL_FUNCTION(void, glColor4ub, (GLubyte,GLubyte,GLubyte,GLubyte))
+GL_FUNCTION(void, glColor4ub, (GLubyte, GLubyte, GLubyte, GLubyte))
 GL_FUNCTION(void, glColor4ubv, (const GLubyte *))
 GL_FUNCTION(void, glColor3ubv, (const GLubyte *))
-GL_FUNCTION(void, glColor3f, (GLfloat,GLfloat,GLfloat))
-GL_FUNCTION(void, glClearColor, (GLclampf,GLclampf,GLclampf,GLclampf))
+GL_FUNCTION(void, glColor3f, (GLfloat, GLfloat, GLfloat))
+GL_FUNCTION(void, glColor3fv, (const GLfloat *))
+GL_FUNCTION(void, glClearColor, (GLclampf, GLclampf, GLclampf, GLclampf))
 
-GL_FUNCTION(void, glAlphaFunc, (GLenum,GLclampf))
-GL_FUNCTION(void, glBlendFunc, (GLenum,GLenum))
+GL_FUNCTION(void, glAlphaFunc, (GLenum, GLclampf))
+GL_FUNCTION(void, glBlendFunc, (GLenum, GLenum))
 GL_FUNCTION(void, glShadeModel, (GLenum))
-GL_FUNCTION(void, glPolygonMode, (GLenum,GLenum))
+GL_FUNCTION(void, glPolygonMode, (GLenum, GLenum))
 GL_FUNCTION(void, glDepthMask, (GLboolean))
-GL_FUNCTION(void, glDepthRange, (GLclampd,GLclampd))
+GL_FUNCTION(void, glDepthRange, (GLclampd, GLclampd))
 GL_FUNCTION(void, glDepthFunc, (GLenum))
 
 #if defined(DRAW_PROGRESSBARS) /* D_ShowLoadingSize() */
 GL_FUNCTION(void, glDrawBuffer, (GLenum))
 #endif
-GL_FUNCTION(void, glReadPixels, (GLint,GLint,GLsizei,GLsizei,GLenum,GLenum, GLvoid *))
-GL_FUNCTION(void, glPixelStorei, (GLenum,GLint))
-GL_FUNCTION(void, glHint, (GLenum,GLenum))
+GL_FUNCTION(void, glReadPixels, (GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, GLvoid *))
+GL_FUNCTION(void, glPixelStorei, (GLenum, GLint))
+GL_FUNCTION(void, glHint, (GLenum, GLenum))
 GL_FUNCTION(void, glCullFace, (GLenum))
 
-GL_FUNCTION(void, glRotatef, (GLfloat,GLfloat,GLfloat,GLfloat))
-GL_FUNCTION(void, glTranslatef, (GLfloat,GLfloat,GLfloat))
+GL_FUNCTION(void, glRotatef, (GLfloat, GLfloat, GLfloat, GLfloat))
+GL_FUNCTION(void, glTranslatef, (GLfloat, GLfloat, GLfloat))
+
+GL_FUNCTION(void, glFogf, (GLenum pname, GLfloat param));
+GL_FUNCTION(void, glFogfv, (GLenum pname, const GLfloat *params));
+GL_FUNCTION(void, glFogi, (GLenum pname, GLint param));
+GL_FUNCTION(void, glFogiv, (GLenum pname, const GLint *params));
 
 GL_FUNCTION(void, glOrtho, (GLdouble,GLdouble,GLdouble,GLdouble,GLdouble,GLdouble))
 GL_FUNCTION(void, glFrustum, (GLdouble,GLdouble,GLdouble,GLdouble,GLdouble,GLdouble))

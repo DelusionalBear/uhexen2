@@ -28,6 +28,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 GLfloat Fog_GetDensity(void);
 GLfloat *Fog_GetColor(void);
+void DrawGLPoly(glpoly_t *p);
 
 extern	qmodel_t	*loadmodel;
 extern	int	rs_skypolys; //for r_speeds readout
@@ -679,7 +680,7 @@ void Sky_EmitSkyBoxVertex (float s, float t, int axis)
 	t = t * (h-1)/h + 0.5/h;
 
 	t = 1.0 - t;
-	glTexCoord2f (s, t);
+	glTexCoord2f_fp (s, t);
 	glVertex3fv_fp(v);
 }
 
@@ -842,7 +843,7 @@ void Sky_DrawFaceQuad (glpoly_t *p)
 		for (i=0, v=p->verts[0] ; i<4 ; i++, v+=VERTEXSIZE)
 		{
 			Sky_GetTexCoord (v, 8, &s, &t);
-			glTexCoord2f (s, t);
+			glTexCoord2f_fp (s, t);
 			glVertex3fv_fp(v);
 		}
 		glEnd_fp();
@@ -857,7 +858,7 @@ void Sky_DrawFaceQuad (glpoly_t *p)
 		for (i=0, v=p->verts[0] ; i<4 ; i++, v+=VERTEXSIZE)
 		{
 			Sky_GetTexCoord (v, 16, &s, &t);
-			glTexCoord2f (s, t);
+			glTexCoord2f_fp (s, t);
 			glVertex3fv_fp(v);
 		}
 		glEnd_fp();
@@ -1013,16 +1014,16 @@ void Sky_DrawSky (void)
 	//
 	if (!r_fastsky.value && !(Fog_GetDensity() > 0 && skyfog >= 1))
 	{
-		glDepthFunc(GL_GEQUAL);
-		glDepthMask(0);
+		glDepthFunc_fp(GL_GEQUAL);
+		glDepthMask_fp(0);
 
 		if (skybox_name[0])
 			Sky_DrawSkyBox ();
 		else
 			Sky_DrawSkyLayers();
 
-		glDepthMask(1);
-		glDepthFunc(GL_LEQUAL);
+		glDepthMask_fp(1);
+		glDepthFunc_fp(GL_LEQUAL);
 	}
 
 	Fog_EnableGFog ();

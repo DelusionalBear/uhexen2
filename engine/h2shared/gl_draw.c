@@ -55,6 +55,8 @@ static GLuint		cs_texture;	// crosshair texture
 static GLuint		char_smalltexture;
 static GLuint		char_menufonttexture;
 
+extern	cvar_t	r_wateralpha;
+
 byte pic_nul_data[8][8] =
 {
 	{252,252,252,252,  0,  0,  0,  0},

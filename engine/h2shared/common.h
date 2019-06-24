@@ -28,6 +28,10 @@
 #undef	max
 #define	q_min(a, b)	(((a) < (b)) ? (a) : (b))
 #define	q_max(a, b)	(((a) > (b)) ? (a) : (b))
+#define	CLAMP(_minval, x, _maxval)		\
+	((x) < (_minval) ? (_minval) :		\
+	 (x) > (_maxval) ? (_maxval) : (x))
+
 
 #if defined(PLATFORM_WINDOWS) && !defined(F_OK)
 /* constants for access() mode argument. MS does not define them.
@@ -123,6 +127,20 @@ typedef struct searchpath_s
 	struct pack_s		*pack;	/* only one of filename / pack will be used */
 	struct searchpath_s	*next;
 } searchpath_t;
+
+typedef struct
+{
+	char	name[MAX_QPATH];
+	int	filepos, filelen;
+} pakfiles_t;
+
+typedef struct pack_s
+{
+	char	filename[MAX_OSPATH];
+	FILE	*handle;
+	int	numfiles;
+	pakfiles_t	*files;
+} pack_t;
 
 extern searchpath_t *fs_searchpaths;
 extern searchpath_t *fs_base_searchpaths;

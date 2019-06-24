@@ -26,6 +26,8 @@
 #include "filenames.h"
 
 int		safemode;
+extern searchpath_t *fs_searchpaths;
+extern searchpath_t *fs_base_searchpaths;
 
 
 /*
@@ -278,19 +280,6 @@ const char *COM_FileGetExtension (const char *in)
 }
 
 /*
-===========
-COM_FOpenFile
-
-If the requested file is inside a packfile, a new FILE * will be opened
-into the file.
-===========
-*/
-int COM_FOpenFile(const char *filename, FILE **file, unsigned int *path_id)
-{
-	return COM_FindFile(filename, NULL, file, path_id);
-}
-
-/*
 ============
 COM_CloseFile
 
@@ -373,6 +362,219 @@ void COM_AddExtension (char *path, const char *extension, size_t len)
 		qerr_strlcat(__thisfunc__, __LINE__, path, extension, len);
 }
 
+/*
+================
+COM_filelength
+================
+*/
+long COM_filelength(FILE *f)
+{
+	long		pos, end;
+
+	pos = ftell(f);
+	fseek(f, 0, SEEK_END);
+	end = ftell(f);
+	fseek(f, pos, SEEK_SET);
+
+	return end;
+}
+
+/*
+============
+COM_LoadFile
+
+Filename are reletive to the quake directory.
+Allways appends a 0 byte.
+============
+*/
+#define	LOADFILE_ZONE		0
+#define	LOADFILE_HUNK		1
+#define	LOADFILE_TEMPHUNK	2
+#define	LOADFILE_CACHE		3
+#define	LOADFILE_STACK		4
+#define	LOADFILE_MALLOC		5
+
+static byte	*loadbuf;
+static cache_user_t *loadcache;
+static int	loadsize;
+
+byte *COM_LoadFile(const char *path, int usehunk, unsigned int *path_id)
+{
+	int		h;
+	byte	*buf;
+	char	base[32];
+	int		len;
+
+	buf = NULL;	// quiet compiler warning
+
+// look for it in the filesystem or pack files
+	len = FS_OpenFile(path, &h, path_id);
+	if (h == -1)
+		return NULL;
+
+	// extract the filename base name for hunk tag
+	COM_FileBase(path, base, sizeof(base));
+
+	switch (usehunk)
+	{
+	case LOADFILE_HUNK:
+		buf = (byte *)Hunk_AllocName(len + 1, base);
+		break;
+	case LOADFILE_TEMPHUNK:
+		buf = (byte *)Hunk_TempAlloc(len + 1);
+		break;
+	case LOADFILE_ZONE:
+		buf = (byte *)Z_Malloc(len + 1, Z_MAINZONE);
+		break;
+	case LOADFILE_CACHE:
+		buf = (byte *)Cache_Alloc(loadcache, len + 1, base);
+		break;
+	case LOADFILE_STACK:
+		if (len < loadsize)
+			buf = loadbuf;
+		else
+			buf = (byte *)Hunk_TempAlloc(len + 1);
+		break;
+	case LOADFILE_MALLOC:
+		buf = (byte *)malloc(len + 1);
+		break;
+	default:
+		Sys_Error("COM_LoadFile: bad usehunk");
+	}
+
+	if (!buf)
+		Sys_Error("COM_LoadFile: not enough space for %s", path);
+
+	((byte *)buf)[len] = 0;
+
+	Sys_FileRead(h, buf, len);
+	COM_CloseFile(h);
+
+	return buf;
+}
+
+
+/*
+===========
+COM_FindFile
+
+Finds the file in the search path.
+Sets com_filesize and one of handle or file
+If neither of file or handle is set, this
+can be used for detecting a file's presence.
+===========
+*/
+static int COM_FindFile(const char *filename, int *handle, FILE **file,
+	unsigned int *path_id)
+{
+	searchpath_t	*search;
+	char		netpath[MAX_OSPATH];
+	pack_t		*pak;
+	int		i, findtime;
+
+	if (file && handle)
+		Sys_Error("COM_FindFile: both handle and file set");
+
+	file_from_pak = 0;
+
+	//
+	// search through the path, one element at a time
+	//
+	for (search = fs_searchpaths; search; search = search->next)
+	{
+		if (search->pack)	/* look through all the pak file elements */
+		{
+			pak = search->pack;
+			for (i = 0; i < pak->numfiles; i++)
+			{
+				if (strcmp(pak->files[i].name, filename) != 0)
+					continue;
+				// found it!
+				fs_filesize = pak->files[i].filelen;
+				file_from_pak = 1;
+				if (path_id)
+					*path_id = search->path_id;
+				if (handle)
+				{
+					*handle = pak->handle;
+					Sys_FileSeek(pak->handle, pak->files[i].filepos);
+					return fs_filesize;
+				}
+				else if (file)
+				{ /* open a new file on the pakfile */
+					*file = fopen(pak->filename, "rb");
+					if (*file)
+						fseek(*file, pak->files[i].filepos, SEEK_SET);
+					return fs_filesize;
+				}
+				else /* for COM_FileExists() */
+				{
+					return fs_filesize;
+				}
+			}
+		}
+		else	/* check a file in the directory tree */
+		{
+			if (!registered.value)
+			{ /* if not a registered version, don't ever go beyond base */
+				if (strchr(filename, '/') || strchr(filename, '\\'))
+					continue;
+			}
+
+			q_snprintf(netpath, sizeof(netpath), "%s/%s", search->filename, filename);
+			findtime = Sys_FileTime(netpath);
+			if (findtime == -1)
+				continue;
+
+			if (path_id)
+				*path_id = search->path_id;
+			if (handle)
+			{
+				fs_filesize = Sys_FileOpenRead(netpath, &i);
+				*handle = i;
+				return fs_filesize;
+			}
+			else if (file)
+			{
+				*file = fopen(netpath, "rb");
+				fs_filesize = (*file == NULL) ? -1 : COM_filelength(*file);
+				return fs_filesize;
+			}
+			else
+			{
+				return 0; /* dummy valid value for COM_FileExists() */
+			}
+		}
+	}
+
+	if (strcmp(COM_FileGetExtension(filename), "pcx") != 0
+		&& strcmp(COM_FileGetExtension(filename), "tga") != 0
+		&& strcmp(COM_FileGetExtension(filename), "lit") != 0
+		&& strcmp(COM_FileGetExtension(filename), "ent") != 0)
+		Con_DPrintf("FindFile: can't find %s\n", filename);
+	else	Con_DPrintf("FindFile: can't find %s\n", filename);
+	// Log pcx, tga, lit, ent misses only if (developer.value >= 2)
+
+	if (handle)
+		*handle = -1;
+	if (file)
+		*file = NULL;
+	fs_filesize = -1;
+	return fs_filesize;
+}
+
+/*
+===========
+COM_FOpenFile
+
+If the requested file is inside a packfile, a new FILE * will be opened
+into the file.
+===========
+*/
+int COM_FOpenFile(const char *filename, FILE **file, unsigned int *path_id)
+{
+	return COM_FindFile(filename, NULL, file, path_id);
+}
 
 /*
 ============================================================================

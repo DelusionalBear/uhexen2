@@ -40,6 +40,8 @@ const int	color_offsets[MAX_PLAYER_CLASS] =
 extern cvar_t r_lerpmodels;
 extern cvar_t gl_overbright;
 extern cvar_t gl_overbright_models;
+extern cvar_t gl_farclip;
+extern cvar_t r_oldwater;
 cvar_t			gl_purge_maptex = {"gl_purge_maptex", "1", CVAR_ARCHIVE};
 				// whether or not map-specific OGL textures
 				// are purged on map change. default == yes
@@ -191,6 +193,23 @@ static void R_TimeRefresh_f (void)
 }
 
 /*
+====================
+GL_WaterAlphaForSurfface -- ericw
+====================
+*/
+float GL_WaterAlphaForSurface(msurface_t *fa)
+{
+	if (fa->flags & SURF_DRAWLAVA)
+		return map_lavaalpha > 0 ? map_lavaalpha : map_wateralpha;
+	else if (fa->flags & SURF_DRAWTELE)
+		return map_telealpha > 0 ? map_telealpha : map_wateralpha;
+	else if (fa->flags & SURF_DRAWSLIME)
+		return map_slimealpha > 0 ? map_slimealpha : map_wateralpha;
+	else
+		return map_wateralpha;
+}
+
+/*
 ===============
 R_Init
 ===============
@@ -203,6 +222,7 @@ void R_Init (void)
 	Cvar_RegisterVariable (&r_norefresh);
 	Cvar_RegisterVariable (&r_lightmap);
 	Cvar_RegisterVariable (&r_fullbright);
+	Cvar_RegisterVariable (&gl_farclip);
 	Cvar_RegisterVariable (&r_waterwarp);
 	Cvar_RegisterVariable (&r_drawentities);
 	Cvar_RegisterVariable (&r_drawviewmodel);
@@ -408,6 +428,7 @@ void R_NewMap (void)
 	}
 
 	Sky_NewMap(); //johnfitz -- skybox in worldspawn
+	load_subdivide_size = gl_subdivide_size.value; //johnfitz -- is this the right place to set this?
 #ifdef QUAKE2
 	R_LoadSkys ();
 #endif

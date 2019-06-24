@@ -212,7 +212,7 @@ void TexMgr_Imagedump_f (void)
 	//loop through textures
 	for (glt=active_gltextures; glt; glt=glt->next)
 	{
-		Q_strcpy(tempname, glt->name);
+		strcpy(tempname, glt->name);
 		while (c = strchr(tempname, ':')) *c = '_';
 		while (c = strchr(tempname, '/')) *c = '_';
 		while (c = strchr(tempname, '*')) *c = '_';
@@ -222,13 +222,13 @@ void TexMgr_Imagedump_f (void)
 		if (glt->flags & TEXPREF_ALPHA)
 		{
 			buffer = malloc(glt->width*glt->height*4);
-			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+			glGetTexImage_fp(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
 			Image_WriteTGA (tganame, buffer, glt->width, glt->height, 32, true);
 		}
 		else
 		{
 			buffer = malloc(glt->width*glt->height*3);
-			glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, buffer);
+			glGetTexImage_fp(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, buffer);
 			Image_WriteTGA (tganame, buffer, glt->width, glt->height, 24, true);
 		}
 		free (buffer);
@@ -513,7 +513,7 @@ void TexMgr_RecalcWarpImageSize (void)
 		if (glt->flags & TEXPREF_WARPIMAGE)
 		{
 			GL_Bind (glt);
-			glTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, gl_warpimagesize, gl_warpimagesize, 0, GL_RGBA, GL_UNSIGNED_BYTE, dummy);
+			glTexImage2D_fp (GL_TEXTURE_2D, 0, gl_solid_format, gl_warpimagesize, gl_warpimagesize, 0, GL_RGBA, GL_UNSIGNED_BYTE, dummy);
 			glt->width = glt->height = gl_warpimagesize;
 		}
 	}
@@ -961,7 +961,7 @@ void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 	// upload
 	GL_Bind (glt);
 	internalformat = (glt->flags & TEXPREF_ALPHA) ? gl_alpha_format : gl_solid_format;
-	glTexImage2D (GL_TEXTURE_2D, 0, internalformat, glt->width, glt->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	glTexImage2D_fp (GL_TEXTURE_2D, 0, internalformat, glt->width, glt->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
 	// upload mipmaps
 	if (glt->flags & TEXPREF_MIPMAP)
@@ -981,7 +981,7 @@ void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 				TexMgr_MipMapH (data, mipwidth, mipheight);
 				mipheight >>= 1;
 			}
-			glTexImage2D (GL_TEXTURE_2D, miplevel, internalformat, mipwidth, mipheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			glTexImage2D_fp (GL_TEXTURE_2D, miplevel, internalformat, mipwidth, mipheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		}
 	}
 
@@ -1089,7 +1089,7 @@ void TexMgr_LoadLightmap (gltexture_t *glt, byte *data)
 
 	// upload it
 	GL_Bind (glt);
-	glTexImage2D (GL_TEXTURE_2D, 0, lightmap_bytes, glt->width, glt->height, 0, gl_lightmap_format, GL_UNSIGNED_BYTE, data);
+	glTexImage2D_fp (GL_TEXTURE_2D, 0, lightmap_bytes, glt->width, glt->height, 0, gl_lightmap_format, GL_UNSIGNED_BYTE, data);
 
 	// set filter modes
 	TexMgr_SetFilterModes (glt);
@@ -1194,7 +1194,7 @@ void TexMgr_ReloadImage (gltexture_t *glt, int shirt, int pants)
 	if (glt->source_file[0] && glt->source_offset)
 	{
 		//lump inside file
-		data = COM_LoadHunkFile (glt->source_file);
+		data = FS_LoadHunkFile (glt->source_file, NULL);
 		if (!data)
 			goto invalid;
 		data += glt->source_offset;

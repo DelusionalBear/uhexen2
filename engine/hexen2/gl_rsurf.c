@@ -501,6 +501,25 @@ static void DrawGLPoly (glpoly_t *p)
 	glEnd_fp ();
 }
 
+/*
+================
+DrawGLTriangleFan -- johnfitz -- like DrawGLPoly but for r_showtris
+================
+*/
+void DrawGLTriangleFan(glpoly_t *p)
+{
+	float	*v;
+	int		i;
+
+	glBegin_fp(GL_TRIANGLE_FAN);
+	v = p->verts[0];
+	for (i = 0; i < p->numverts; i++, v += VERTEXSIZE)
+	{
+		glVertex3fv_fp(v);
+	}
+	glEnd_fp();
+}
+
 static void DrawGLPolyMTex (glpoly_t *p)
 {
 	int	i;
@@ -1382,6 +1401,127 @@ void R_DrawTextureChains_White(qmodel_t *model, texchain_t chain)
 
 /*
 ================
+R_DrawTextureChains_GLSL -- ericw
+
+Draw lightmapped surfaces with fulbrights in one pass, using VBO.
+Requires 3 TMUs, OpenGL 2.0
+================
+*/
+/*
+void R_DrawTextureChains_GLSL(qmodel_t *model, entity_t *ent, texchain_t chain)
+{
+	int			i;
+	msurface_t	*s;
+	texture_t	*t;
+	qboolean	bound;
+	int		lastlightmap;
+	gltexture_t	*fullbright = NULL;
+	float		entalpha;
+
+	entalpha = (ent != NULL) ? ENTALPHA_DECODE(ent->alpha) : 1.0f;
+
+	// enable blending / disable depth writes
+	if (entalpha < 1)
+	{
+		glDepthMask_fp(GL_FALSE);
+		glEnable_fp(GL_BLEND);
+	}
+
+	GL_UseProgramFunc(r_world_program);
+
+	// Bind the buffers
+	GL_BindBuffer(GL_ARRAY_BUFFER, gl_bmodel_vbo);
+	GL_BindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); // indices come from client memory!
+
+	GL_EnableVertexAttribArrayFunc(vertAttrIndex);
+	GL_EnableVertexAttribArrayFunc(texCoordsAttrIndex);
+	GL_EnableVertexAttribArrayFunc(LMCoordsAttrIndex);
+
+	GL_VertexAttribPointerFunc(vertAttrIndex, 3, GL_FLOAT, GL_FALSE, VERTEXSIZE * sizeof(float), ((float *)0));
+	GL_VertexAttribPointerFunc(texCoordsAttrIndex, 2, GL_FLOAT, GL_FALSE, VERTEXSIZE * sizeof(float), ((float *)0) + 3);
+	GL_VertexAttribPointerFunc(LMCoordsAttrIndex, 2, GL_FLOAT, GL_FALSE, VERTEXSIZE * sizeof(float), ((float *)0) + 5);
+
+	// set uniforms
+	GL_Uniform1iFunc(texLoc, 0);
+	GL_Uniform1iFunc(LMTexLoc, 1);
+	GL_Uniform1iFunc(fullbrightTexLoc, 2);
+	GL_Uniform1iFunc(useFullbrightTexLoc, 0);
+	GL_Uniform1iFunc(useOverbrightLoc, (int)gl_overbright.value);
+	GL_Uniform1iFunc(useAlphaTestLoc, 0);
+	GL_Uniform1fFunc(alphaLoc, entalpha);
+
+	for (i = 0; i < model->numtextures; i++)
+	{
+		t = model->textures[i];
+
+		if (!t || !t->texturechains[chain] || t->texturechains[chain]->flags & (SURF_DRAWTILED | SURF_NOTEXTURE))
+			continue;
+
+		// Enable/disable TMU 2 (fullbrights)
+		// FIXME: Move below to where we bind GL_TEXTURE0
+		if (gl_fullbrights.value && (fullbright = R_TextureAnimation(t, ent != NULL ? ent->frame : 0)->fullbright))
+		{
+			GL_SelectTexture(GL_TEXTURE2);
+			GL_Bind(fullbright);
+			GL_Uniform1iFunc(useFullbrightTexLoc, 1);
+		}
+		else
+			GL_Uniform1iFunc(useFullbrightTexLoc, 0);
+
+		R_ClearBatch();
+
+		bound = false;
+		lastlightmap = 0; // avoid compiler warning
+		for (s = t->texturechains[chain]; s; s = s->texturechain)
+			if (!s->culled)
+			{
+				if (!bound) //only bind once we are sure we need this texture
+				{
+					GL_SelectTexture(GL_TEXTURE0);
+					GL_Bind((R_TextureAnimation(t, ent != NULL ? ent->frame : 0))->gltexture);
+
+					if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
+						GL_Uniform1iFunc(useAlphaTestLoc, 1); // Flip alpha test back on
+
+					bound = true;
+					lastlightmap = s->lightmaptexturenum;
+				}
+
+				if (s->lightmaptexturenum != lastlightmap)
+					R_FlushBatch();
+
+				GL_SelectTexture(GL_TEXTURE1);
+				GL_Bind(lightmap_textures[s->lightmaptexturenum]);
+				lastlightmap = s->lightmaptexturenum;
+				R_BatchSurface(s);
+
+				rs_brushpasses++;
+			}
+
+		R_FlushBatch();
+
+		if (bound && t->texturechains[chain]->flags & SURF_DRAWFENCE)
+			GL_Uniform1iFunc(useAlphaTestLoc, 0); // Flip alpha test back off
+	}
+
+	// clean up
+	GL_DisableVertexAttribArrayFunc(vertAttrIndex);
+	GL_DisableVertexAttribArrayFunc(texCoordsAttrIndex);
+	GL_DisableVertexAttribArrayFunc(LMCoordsAttrIndex);
+
+	GL_UseProgramFunc(0);
+	GL_SelectTexture(GL_TEXTURE0);
+
+	if (entalpha < 1)
+	{
+		glDepthMask_fp(GL_TRUE);
+		glDisable_fp(GL_BLEND);
+	}
+}
+*/
+
+/*
+================
 R_DrawLightmapChains -- johnfitz -- R_BlendLightmaps stripped down to almost nothing
 ================
 */
@@ -1471,6 +1611,7 @@ void R_DrawTextureChains(qmodel_t *model, entity_t *ent, texchain_t chain)
 	R_DrawTextureChains_NoTexture(model, chain);
 
 	// OpenGL 2 fast path
+	/*
 	if (r_world_program != 0)
 	{
 		R_EndTransparentDrawing(entalpha);
@@ -1478,6 +1619,7 @@ void R_DrawTextureChains(qmodel_t *model, entity_t *ent, texchain_t chain)
 		R_DrawTextureChains_GLSL(model, ent, chain);
 		return;
 	}
+	*/
 
 	if (gl_overbright.value)
 	{
@@ -1804,7 +1946,8 @@ void R_DrawBrushModel (entity_t *e, qboolean Translucent)
 		(e->drawflags & MLS_ABSLIGHT) != MLS_ABSLIGHT &&
 		!gl_mtexable)
 	{
-		R_BlendLightmaps (Translucent);
+		//R_BlendLightmaps (Translucent);
+		R_DrawLightmapChains();
 	}
 	glPopMatrix_fp ();
 #if 0 /* see above... */

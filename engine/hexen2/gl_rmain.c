@@ -54,7 +54,7 @@ int			c_brush_polys, c_alias_polys;
 
 qboolean	r_cache_thrash;			// compatability
 
-GLuint			currenttexture = GL_UNUSED_TEXTURE;	// to avoid unnecessary texture sets
+//GLuint			currenttexture = GL_UNUSED_TEXTURE;	// to avoid unnecessary texture sets
 
 GLuint			particletexture;	// little dot for particles
 GLuint			playertextures[MAX_CLIENTS];	// up to MAX_CLIENTS color translated skins
@@ -97,14 +97,12 @@ cvar_t	r_norefresh = {"r_norefresh", "0", CVAR_NONE};
 cvar_t	r_drawentities = {"r_drawentities", "1", CVAR_NONE};
 cvar_t	r_drawviewmodel = {"r_drawviewmodel", "1", CVAR_NONE};
 cvar_t	r_speeds = {"r_speeds", "0", CVAR_NONE};
-cvar_t	r_waterwarp = {"r_waterwarp", "0", CVAR_ARCHIVE};
 cvar_t	r_fullbright = {"r_fullbright", "0", CVAR_NONE};
 cvar_t	gl_fullbrights = { "gl_fullbrights", "1", CVAR_ARCHIVE };
+cvar_t	gl_farclip = { "gl_farclip", "16384", CVAR_ARCHIVE };
 cvar_t	r_lightmap = {"r_lightmap", "0", CVAR_NONE};
 cvar_t	r_shadows = {"r_shadows", "0", CVAR_ARCHIVE};
 cvar_t	r_mirroralpha = {"r_mirroralpha", "1", CVAR_NONE};
-cvar_t	r_wateralpha = {"r_wateralpha", "0.33", CVAR_ARCHIVE};
-cvar_t	r_skyalpha = {"r_skyalpha", "0.67", CVAR_ARCHIVE};
 cvar_t	r_dynamic = {"r_dynamic", "1", CVAR_NONE};
 cvar_t	r_novis = {"r_novis", "0", CVAR_NONE};
 cvar_t	r_wholeframe = {"r_wholeframe", "1", CVAR_ARCHIVE};
@@ -136,6 +134,8 @@ cvar_t    r_lerpmodels = { "r_lerpmodels", "1", CVAR_NONE };
 cvar_t    gl_overbright_models = { "gl_overbright_models", "1", CVAR_ARCHIVE };
 qboolean r_drawflat_cheatsafe, r_fullbright_cheatsafe, r_lightmap_cheatsafe, r_drawworld_cheatsafe; //johnfitz
 qboolean gl_texture_env_add = false; //johnfitz
+float	map_wateralpha, map_lavaalpha, map_telealpha, map_slimealpha;
+cvar_t	r_wateralpha = { "r_wateralpha","1",CVAR_ARCHIVE };
 //=============================================================================
 
 

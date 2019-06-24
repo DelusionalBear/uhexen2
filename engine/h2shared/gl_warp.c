@@ -28,10 +28,15 @@ int		skytexturenum;
 
 static GLuint	solidskytexture, alphaskytexture;
 static float	speedscale;	// for top sky and bottom sky
+cvar_t r_oldwater = { "r_oldwater", "0", CVAR_ARCHIVE };
+cvar_t r_waterquality = { "r_waterquality", "8", CVAR_NONE };
+cvar_t r_waterwarp = { "r_waterwarp", "1", CVAR_NONE };
 
 static msurface_t	*warpface;
 
 #define	SUBDIVIDE_SIZE	64
+
+float load_subdivide_size; //johnfitz -- remember what subdivide_size value was when this map was loaded
 
 static void BoundPoly (int numverts, float *verts, vec3_t mins, vec3_t maxs)
 {
@@ -174,6 +179,40 @@ void GL_SubdivideSurface (msurface_t *fa)
 	}
 
 	SubdividePolygon (numverts, verts[0]);
+}
+
+/*
+================
+DrawWaterPoly -- johnfitz
+================
+*/
+void DrawWaterPoly(glpoly_t *p)
+{
+	float	*v;
+	int		i;
+
+	if (load_subdivide_size > 48)
+	{
+		glBegin_fp(GL_POLYGON);
+		v = p->verts[0];
+		for (i = 0; i < p->numverts; i++, v += VERTEXSIZE)
+		{
+			glTexCoord2f_fp(WARPCALC2(v[3], v[4]), WARPCALC2(v[4], v[3]));
+			glVertex3fv_fp(v);
+		}
+		glEnd_fp();
+	}
+	else
+	{
+		glBegin_fp(GL_POLYGON);
+		v = p->verts[0];
+		for (i = 0; i < p->numverts; i++, v += VERTEXSIZE)
+		{
+			glTexCoord2f_fp(WARPCALC(v[3], v[4]), WARPCALC(v[4], v[3]));
+			glVertex3fv_fp(v);
+		}
+		glEnd_fp();
+	}
 }
 
 //=========================================================

@@ -178,6 +178,7 @@ extern    qboolean        mtexenabled;
 extern int rs_dynamiclightmaps, rs_brushpasses, rs_aliaspasses, rs_skypasses;
 extern    entity_t        *currententity;
 extern qboolean gl_texture_env_add; // for GL_EXT_texture_env_add
+extern float	map_wateralpha, map_lavaalpha, map_telealpha, map_slimealpha; //ericw
 
 /* particle enums and types: note that hexen2 and
    hexenworld versions of these are different!! */
@@ -194,6 +195,13 @@ extern	GLuint		particletexture;
 extern gltexture_t *lightmap_textures[MAX_LIGHTMAPS]; //johnfitz -- changed to an array
 extern	GLuint		playertextures[MAX_CLIENTS];
 extern	GLuint		gl_extra_textures[MAX_EXTRA_TEXTURES];	// generic textures for models
+
+
+// Multitexture
+extern	qboolean	mtexenabled;
+extern	qboolean	gl_mtexable;
+//ericw
+
 
 /* the GL_Bind macro */
 /*
@@ -347,10 +355,13 @@ GLuint GL_LoadPicTexture (qpic_t *pic);
 void D_ClearOpenGLTextures (int last_tex);
 
 qboolean R_CullBox (vec3_t mins, vec3_t maxs);
+void DrawGLTriangleFan(glpoly_t *p);
 void R_DrawBrushModel (entity_t *e, qboolean Translucent);
 void R_DrawWorld (void);
 void R_RenderBrushPoly (entity_t *e, msurface_t *fa, qboolean override);
 void R_RotateForEntity (entity_t *e);
+void DrawWaterPoly(glpoly_t *p);
+void DrawGLPoly(glpoly_t *p);
 void R_StoreEfrags (efrag_t **ppefrag);
 
 #if defined(QUAKE2)
@@ -383,5 +394,10 @@ void R_InitNetgraphTexture (void);
 void R_ReadPointFile_f (void);
 void R_TranslatePlayerSkin (int playernum);
 qboolean R_CullModelForEntity(entity_t *e);
+float GL_WaterAlphaForSurface(msurface_t *fa);
+
+extern	cvar_t	gl_subdivide_size;
+extern	float	load_subdivide_size; //johnfitz -- remember what subdivide_size value was when this map was loaded
+
 #endif	/* GLQUAKE_H */
 

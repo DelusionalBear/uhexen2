@@ -106,8 +106,13 @@ typedef struct texture_s
 #define SURF_DRAWBLACK		0x100
 #define SURF_UNDERWATER		0x200
 #define SURF_DONTWARP		0x400
-#define SURF_DRAWFENCE		0x800
-#define SURF_NOTEXTURE		0x1000 //johnfitz
+#define SURF_NOTEXTURE		0x800 //johnfitz
+#define SURF_DRAWFENCE		0x1000
+#define SURF_DRAWLAVA		0x2000
+#define SURF_DRAWSLIME		0x4000
+#define SURF_DRAWTELE		0x8000
+#define SURF_DRAWWATER		0x10000
+
 
 
 // !!! if this is changed, it must be changed in asm_draw.h too !!!
