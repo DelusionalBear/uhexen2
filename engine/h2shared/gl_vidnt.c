@@ -207,9 +207,7 @@ extern cvar_t		gl_max_size;
 static qboolean	have_NPOT = false;
 qboolean	gl_tex_NPOT = false;
 static cvar_t	gl_texture_NPOT = {"gl_texture_NPOT", "0", CVAR_ARCHIVE};
-GLfloat		gl_max_anisotropy;
 float		gldepthmin, gldepthmax;
-qboolean gl_texture_env_combine = false; //johnfitz
 
 // palettized textures
 static qboolean	have8bit = false;
@@ -222,6 +220,7 @@ static GAMMA_RAMP_FN	GetDeviceGammaRamp_f;
 static GAMMA_RAMP_FN	SetDeviceGammaRamp_f;
 extern unsigned short	ramps[3][256];	// for hw- or 3dfx-gamma
 static unsigned short	orig_ramps[3][256];	// for hw- or 3dfx-gamma
+extern qboolean gl_texture_env_add; //johnfitz
 static qboolean	gammaworks = false;	// whether hw-gamma works
 
 // multitexturing
@@ -229,6 +228,18 @@ qboolean	gl_mtexable = false;
 static GLint	num_tmus = 1;
 static qboolean	have_mtex = false;
 static cvar_t	gl_multitexture = {"gl_multitexture", "0", CVAR_ARCHIVE};
+qboolean gl_texture_env_combine = false; //johnfitz
+qboolean gl_swap_control = false; //johnfitz
+qboolean gl_anisotropy_able = false; //johnfitz
+float gl_max_anisotropy; //johnfitz
+//qboolean gl_texture_NPOT = false; //ericw
+qboolean gl_vbo_able = false; //ericw
+qboolean gl_glsl_able = false; //ericw
+GLint gl_max_texture_units = 0; //ericw
+qboolean gl_glsl_gamma_able = false; //ericw
+qboolean gl_glsl_alias_able = false; //ericw
+int gl_stencilbits;
+
 
 // stencil buffer
 qboolean	have_stencil = false;
@@ -245,6 +256,39 @@ static void ClearAllStates (void);
 static int	enable_mouse;
 cvar_t		_enable_mouse = {"_enable_mouse", "0", CVAR_ARCHIVE};
 
+
+PFNGLMULTITEXCOORD2FARBPROC GL_MTexCoord2fFunc = NULL; //johnfitz
+PFNGLACTIVETEXTUREARBPROC GL_SelectTextureFunc = NULL; //johnfitz
+PFNGLCLIENTACTIVETEXTUREARBPROC GL_ClientActiveTextureFunc = NULL; //ericw
+PFNGLBINDBUFFERARBPROC GL_BindBufferFunc = NULL; //ericw
+PFNGLBUFFERDATAARBPROC GL_BufferDataFunc = NULL; //ericw
+PFNGLBUFFERSUBDATAARBPROC GL_BufferSubDataFunc = NULL; //ericw
+PFNGLDELETEBUFFERSARBPROC GL_DeleteBuffersFunc = NULL; //ericw
+PFNGLGENBUFFERSARBPROC GL_GenBuffersFunc = NULL; //ericw
+
+QS_PFNGLCREATESHADERPROC GL_CreateShaderFunc = NULL; //ericw
+QS_PFNGLDELETESHADERPROC GL_DeleteShaderFunc = NULL; //ericw
+QS_PFNGLDELETEPROGRAMPROC GL_DeleteProgramFunc = NULL; //ericw
+QS_PFNGLSHADERSOURCEPROC GL_ShaderSourceFunc = NULL; //ericw
+QS_PFNGLCOMPILESHADERPROC GL_CompileShaderFunc = NULL; //ericw
+QS_PFNGLGETSHADERIVPROC GL_GetShaderivFunc = NULL; //ericw
+QS_PFNGLGETSHADERINFOLOGPROC GL_GetShaderInfoLogFunc = NULL; //ericw
+QS_PFNGLGETPROGRAMIVPROC GL_GetProgramivFunc = NULL; //ericw
+QS_PFNGLGETPROGRAMINFOLOGPROC GL_GetProgramInfoLogFunc = NULL; //ericw
+QS_PFNGLCREATEPROGRAMPROC GL_CreateProgramFunc = NULL; //ericw
+QS_PFNGLATTACHSHADERPROC GL_AttachShaderFunc = NULL; //ericw
+QS_PFNGLLINKPROGRAMPROC GL_LinkProgramFunc = NULL; //ericw
+QS_PFNGLBINDATTRIBLOCATIONFUNC GL_BindAttribLocationFunc = NULL; //ericw
+QS_PFNGLUSEPROGRAMPROC GL_UseProgramFunc = NULL; //ericw
+QS_PFNGLGETATTRIBLOCATIONPROC GL_GetAttribLocationFunc = NULL; //ericw
+QS_PFNGLVERTEXATTRIBPOINTERPROC GL_VertexAttribPointerFunc = NULL; //ericw
+QS_PFNGLENABLEVERTEXATTRIBARRAYPROC GL_EnableVertexAttribArrayFunc = NULL; //ericw
+QS_PFNGLDISABLEVERTEXATTRIBARRAYPROC GL_DisableVertexAttribArrayFunc = NULL; //ericw
+QS_PFNGLGETUNIFORMLOCATIONPROC GL_GetUniformLocationFunc = NULL; //ericw
+QS_PFNGLUNIFORM1IPROC GL_Uniform1iFunc = NULL; //ericw
+QS_PFNGLUNIFORM1FPROC GL_Uniform1fFunc = NULL; //ericw
+QS_PFNGLUNIFORM3FPROC GL_Uniform3fFunc = NULL; //ericw
+QS_PFNGLUNIFORM4FPROC GL_Uniform4fFunc = NULL; //ericw
 
 //====================================
 

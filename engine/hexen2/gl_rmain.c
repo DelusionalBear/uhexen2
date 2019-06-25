@@ -71,6 +71,24 @@ static float	r_lasttime1 = 0;
 
 extern qmodel_t	*player_models[MAX_PLAYER_CLASS];
 
+// uniforms used in vert shader
+static GLuint blendLoc;
+static GLuint shadevectorLoc;
+static GLuint lightColorLoc;
+
+// uniforms used in frag shader
+static GLuint texLoc;
+static GLuint fullbrightTexLoc;
+static GLuint useFullbrightTexLoc;
+static GLuint useOverbrightLoc;
+static GLuint useAlphaTestLoc;
+
+#define pose1VertexAttrIndex 0
+#define pose1NormalAttrIndex 1
+#define pose2VertexAttrIndex 2
+#define pose2NormalAttrIndex 3
+#define texCoordsAttrIndex 4
+
 //
 // view origin
 //
@@ -131,6 +149,7 @@ cvar_t	gl_colored_dynamic_lights = {"gl_colored_dynamic_lights", "0", CVAR_ARCHI
 cvar_t	gl_extra_dynamic_lights = {"gl_extra_dynamic_lights", "0", CVAR_ARCHIVE};
 
 cvar_t    r_lerpmodels = { "r_lerpmodels", "1", CVAR_NONE };
+cvar_t    r_lerpmove = { "r_lerpmove", "1", CVAR_NONE };
 cvar_t    gl_overbright_models = { "gl_overbright_models", "1", CVAR_ARCHIVE };
 qboolean r_drawflat_cheatsafe, r_fullbright_cheatsafe, r_lightmap_cheatsafe, r_drawworld_cheatsafe; //johnfitz
 qboolean gl_texture_env_add = false; //johnfitz
@@ -138,6 +157,33 @@ float	map_wateralpha, map_lavaalpha, map_telealpha, map_slimealpha;
 cvar_t	r_wateralpha = { "r_wateralpha","1",CVAR_ARCHIVE };
 //=============================================================================
 
+/*
+=============
+GLARB_GetXYZOffset
+
+Returns the offset of the first vertex's meshxyz_t.xyz in the vbo for the given
+model and pose.
+=============
+*/
+void *GLARB_GetXYZOffset(aliashdr_t *hdr, int pose)
+{
+	const int xyzoffs = offsetof(meshxyz_t, xyz);
+	return (void *)(currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof(meshxyz_t)) + xyzoffs);
+}
+
+/*
+=============
+GLARB_GetNormalOffset
+
+Returns the offset of the first vertex's meshxyz_t.normal in the vbo for the
+given model and pose.
+=============
+*/
+static void *GLARB_GetNormalOffset(aliashdr_t *hdr, int pose)
+{
+	const int normaloffs = offsetof(meshxyz_t, normal);
+	return (void *)(currententity->model->vboxyzofs + (hdr->numverts_vbo * pose * sizeof(meshxyz_t)) + normaloffs);
+}
 
 /*
 =================
@@ -566,6 +612,87 @@ static int	lastposenum;
 
 /*
 =============
+GL_DrawAliasFrame_GLSL -- ericw
+
+Optimized alias model drawing codepath.
+Compared to the original GL_DrawAliasFrame, this makes 1 draw call,
+no vertex data is uploaded (it's already in the r_meshvbo and r_meshindexesvbo
+static VBOs), and lerping and lighting is done in the vertex shader.
+
+Supports optional overbright, optional fullbright pixels.
+
+Based on code by MH from RMQEngine
+=============
+*/
+void GL_DrawAliasFrame_GLSL(aliashdr_t *paliashdr, lerpdata_t lerpdata, gltexture_t *tx, gltexture_t *fb)
+{
+	float	blend;
+
+	if (lerpdata.pose1 != lerpdata.pose2)
+	{
+		blend = lerpdata.blend;
+	}
+	else // poses the same means either 1. the entity has paused its animation, or 2. r_lerpmodels is disabled
+	{
+		blend = 0;
+	}
+
+	GL_UseProgramFunc(r_alias_program);
+
+	GL_BindBuffer(GL_ARRAY_BUFFER, currententity->model->meshvbo);
+	GL_BindBuffer(GL_ELEMENT_ARRAY_BUFFER, currententity->model->meshindexesvbo);
+
+	GL_EnableVertexAttribArrayFunc(texCoordsAttrIndex);
+	GL_EnableVertexAttribArrayFunc(pose1VertexAttrIndex);
+	GL_EnableVertexAttribArrayFunc(pose2VertexAttrIndex);
+	GL_EnableVertexAttribArrayFunc(pose1NormalAttrIndex);
+	GL_EnableVertexAttribArrayFunc(pose2NormalAttrIndex);
+
+	GL_VertexAttribPointerFunc(texCoordsAttrIndex, 2, GL_FLOAT, GL_FALSE, 0, (void *)(intptr_t)currententity->model->vbostofs);
+	GL_VertexAttribPointerFunc(pose1VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(meshxyz_t), GLARB_GetXYZOffset(paliashdr, lerpdata.pose1));
+	GL_VertexAttribPointerFunc(pose2VertexAttrIndex, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(meshxyz_t), GLARB_GetXYZOffset(paliashdr, lerpdata.pose2));
+	// GL_TRUE to normalize the signed bytes to [-1 .. 1]
+	GL_VertexAttribPointerFunc(pose1NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof(meshxyz_t), GLARB_GetNormalOffset(paliashdr, lerpdata.pose1));
+	GL_VertexAttribPointerFunc(pose2NormalAttrIndex, 4, GL_BYTE, GL_TRUE, sizeof(meshxyz_t), GLARB_GetNormalOffset(paliashdr, lerpdata.pose2));
+
+	// set uniforms
+	GL_Uniform1fFunc(blendLoc, blend);
+	GL_Uniform3fFunc(shadevectorLoc, shadevector[0], shadevector[1], shadevector[2]);
+	GL_Uniform4fFunc(lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
+	GL_Uniform1iFunc(texLoc, 0);
+	GL_Uniform1iFunc(fullbrightTexLoc, 1);
+	GL_Uniform1iFunc(useFullbrightTexLoc, (fb != NULL) ? 1 : 0);
+	GL_Uniform1fFunc(useOverbrightLoc, overbright ? 1 : 0);
+	GL_Uniform1iFunc(useAlphaTestLoc, (currententity->model->flags & TEX_HOLEY) ? 1 : 0);
+
+	// set textures
+	GL_SelectTexture(GL_TEXTURE0);
+	GL_Bind(tx);
+
+	if (fb)
+	{
+		GL_SelectTexture(GL_TEXTURE1);
+		GL_Bind(fb);
+	}
+
+	// draw
+	glDrawElements_fp(GL_TRIANGLES, paliashdr->numindexes, GL_UNSIGNED_SHORT, (void *)(intptr_t)currententity->model->vboindexofs);
+
+	// clean up
+	GL_DisableVertexAttribArrayFunc(texCoordsAttrIndex);
+	GL_DisableVertexAttribArrayFunc(pose1VertexAttrIndex);
+	GL_DisableVertexAttribArrayFunc(pose2VertexAttrIndex);
+	GL_DisableVertexAttribArrayFunc(pose1NormalAttrIndex);
+	GL_DisableVertexAttribArrayFunc(pose2NormalAttrIndex);
+
+	GL_UseProgramFunc(0);
+	GL_SelectTexture(GL_TEXTURE0);
+
+	rs_aliaspasses += paliashdr->numtris;
+}
+
+/*
+=============
 GL_DrawAliasFrame -- johnfitz -- rewritten to support colored light, lerping, entalpha, multitexture, and r_drawflat
 =============
 */
@@ -813,6 +940,68 @@ void R_SetupAliasFrame(aliashdr_t *paliashdr, int frame, lerpdata_t *lerpdata)
 		lerpdata->blend = 1;
 		lerpdata->pose1 = posenum;
 		lerpdata->pose2 = posenum;
+	}
+}
+
+/*
+=================
+R_SetupEntityTransform -- johnfitz -- set up transform part of lerpdata
+=================
+*/
+void R_SetupEntityTransform(entity_t *e, lerpdata_t *lerpdata)
+{
+	float blend;
+	vec3_t d;
+	int i;
+
+	// if LERP_RESETMOVE, kill any lerps in progress
+	if (e->lerpflags & LERP_RESETMOVE)
+	{
+		e->movelerpstart = 0;
+		VectorCopy(e->origin, e->previousorigin);
+		VectorCopy(e->origin, e->currentorigin);
+		VectorCopy(e->angles, e->previousangles);
+		VectorCopy(e->angles, e->currentangles);
+		e->lerpflags -= LERP_RESETMOVE;
+	}
+	else if (!VectorCompare(e->origin, e->currentorigin) || !VectorCompare(e->angles, e->currentangles)) // origin/angles changed, start new lerp
+	{
+		e->movelerpstart = cl.time;
+		VectorCopy(e->currentorigin, e->previousorigin);
+		VectorCopy(e->origin, e->currentorigin);
+		VectorCopy(e->currentangles, e->previousangles);
+		VectorCopy(e->angles, e->currentangles);
+	}
+
+	//set up values
+	if (r_lerpmove.value && e != &cl.viewent && e->lerpflags & LERP_MOVESTEP)
+	{
+		if (e->lerpflags & LERP_FINISH)
+			blend = CLAMP(0, (cl.time - e->movelerpstart) / (e->lerpfinish - e->movelerpstart), 1);
+		else
+			blend = CLAMP(0, (cl.time - e->movelerpstart) / 0.1, 1);
+
+		//translation
+		VectorSubtract(e->currentorigin, e->previousorigin, d);
+		lerpdata->origin[0] = e->previousorigin[0] + d[0] * blend;
+		lerpdata->origin[1] = e->previousorigin[1] + d[1] * blend;
+		lerpdata->origin[2] = e->previousorigin[2] + d[2] * blend;
+
+		//rotation
+		VectorSubtract(e->currentangles, e->previousangles, d);
+		for (i = 0; i < 3; i++)
+		{
+			if (d[i] > 180)  d[i] -= 360;
+			if (d[i] < -180) d[i] += 360;
+		}
+		lerpdata->angles[0] = e->previousangles[0] + d[0] * blend;
+		lerpdata->angles[1] = e->previousangles[1] + d[1] * blend;
+		lerpdata->angles[2] = e->previousangles[2] + d[2] * blend;
+	}
+	else //don't lerp
+	{
+		VectorCopy(e->origin, lerpdata->origin);
+		VectorCopy(e->angles, lerpdata->angles);
 	}
 }
 

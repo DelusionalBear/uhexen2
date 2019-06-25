@@ -89,7 +89,7 @@ void TexMgr_SetFilterModes (gltexture_t *glt)
 		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].magfilter);
 	}
 
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, gl_texture_anisotropy.value);
+	glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, gl_texture_anisotropy.value);
 }
 
 /*
@@ -599,7 +599,7 @@ int TexMgr_SafeTextureSize (int s)
 	s = TexMgr_Pad(s);
 	if ((int)gl_max_size.value > 0)
 		s = min(TexMgr_Pad((int)gl_max_size.value), s);
-	s = min(gl_hardware_maxsize, s);
+	s = q_min(gl_hardware_maxsize, s);
 	return s;
 }
 
@@ -940,7 +940,7 @@ void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 	glt->height = TexMgr_Pad(glt->height);
 
 	// mipmap down
-	picmip = (glt->flags & TEXPREF_NOPICMIP) ? 0 : max ((int)gl_picmip.value, 0);
+	picmip = (glt->flags & TEXPREF_NOPICMIP) ? 0 : q_max((int)gl_picmip.value, 0);
 	mipwidth = TexMgr_SafeTextureSize (glt->width >> picmip);
 	mipheight = TexMgr_SafeTextureSize (glt->height >> picmip);
 	while (glt->width > mipwidth)

@@ -33,8 +33,18 @@ cvar_t r_waterquality = { "r_waterquality", "8", CVAR_NONE };
 cvar_t r_waterwarp = { "r_waterwarp", "1", CVAR_NONE };
 
 static msurface_t	*warpface;
+int gl_warpimagesize;
 
 #define	SUBDIVIDE_SIZE	64
+
+// speed up sin calculations - Ed
+#define TURBSCALE (256.0 / (2 * M_PI))
+float	turbsin[] =
+{
+#include "gl_warp_sin.h"
+};
+#define WARPCALC(s,t) ((s + turbsin[(int)((t*2)+(cl.time*(128.0/M_PI))) & 255]) * (1.0/64)) //johnfitz -- correct warp
+#define WARPCALC2(s,t) ((s + turbsin[(int)((t*0.125+cl.time)*(128.0/M_PI)) & 255]) * (1.0/64)) //johnfitz -- old warp
 
 float load_subdivide_size; //johnfitz -- remember what subdivide_size value was when this map was loaded
 
@@ -217,13 +227,6 @@ void DrawWaterPoly(glpoly_t *p)
 
 //=========================================================
 
-
-// speed up sin calculations - Ed
-static float	turbsin[] =
-{
-#include "gl_warp_sin.h"
-};
-#define TURBSCALE (256.0 / (2 * M_PI))
 
 /*
 =============

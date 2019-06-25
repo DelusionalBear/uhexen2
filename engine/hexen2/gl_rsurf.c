@@ -39,11 +39,70 @@ static unsigned int	blocklightscolor[MAX_SURFACE_LIGHTMAP*MAX_SURFACE_LIGHTMAP*3
 static glpoly_t	*lightmap_polys[MAX_LIGHTMAPS];
 static qboolean	lightmap_modified[MAX_LIGHTMAPS];
 
+// uniforms used in frag shader
+static GLuint texLoc;
+static GLuint alphaLoc;
+static GLuint LMTexLoc;
+static GLuint fullbrightTexLoc;
+static GLuint useFullbrightTexLoc;
+static GLuint useOverbrightLoc;
+static GLuint useAlphaTestLoc;
+extern GLuint gl_bmodel_vbo;
+
 static int	allocated[MAX_LIGHTMAPS][BLOCK_WIDTH];
+
+typedef struct glRect_s {
+	unsigned char l, t, w, h;
+} glRect_t;
 
 // the lightmap texture data needs to be kept in
 // main memory so texsubimage can update properly
 static byte	lightmaps[4*MAX_LIGHTMAPS*BLOCK_WIDTH*BLOCK_HEIGHT];
+glpoly_t	*lightmap_polys[MAX_LIGHTMAPS];
+qboolean	lightmap_modified[MAX_LIGHTMAPS];
+glRect_t	lightmap_rectchange[MAX_LIGHTMAPS];
+
+/*
+===============
+R_UploadLightmap -- johnfitz -- uploads the modified lightmap to opengl if necessary
+
+assumes lightmap texture is already bound
+===============
+*/
+static void R_UploadLightmap(int lmap)
+{
+	glRect_t	*theRect;
+
+	if (!lightmap_modified[lmap])
+		return;
+
+	lightmap_modified[lmap] = false;
+
+	theRect = &lightmap_rectchange[lmap];
+	glTexSubImage2D_fp(GL_TEXTURE_2D, 0, 0, theRect->t, BLOCK_WIDTH, theRect->h, gl_lightmap_format,
+		  GL_UNSIGNED_BYTE, lightmaps+(lmap* BLOCK_HEIGHT + theRect->t) *BLOCK_WIDTH*lightmap_bytes);
+	theRect->l = BLOCK_WIDTH;
+	theRect->t = BLOCK_HEIGHT;
+	theRect->h = 0;
+	theRect->w = 0;
+
+	rs_dynamiclightmaps++;
+}
+
+void R_UploadLightmaps(void)
+{
+	int lmap;
+
+	for (lmap = 0; lmap < MAX_LIGHTMAPS; lmap++)
+	{
+		if (!lightmap_modified[lmap])
+			continue;
+
+		GL_Bind(lightmap_textures[lmap]);
+		R_UploadLightmap(lmap);
+	}
+}
+
 
 
 /*
@@ -486,7 +545,7 @@ static void DrawGLWaterPolyMTexLM (glpoly_t *p)
 DrawGLPoly
 ================
 */
-static void DrawGLPoly (glpoly_t *p)
+void DrawGLPoly (glpoly_t *p)
 {
 	int	i;
 	float	*v;
@@ -520,7 +579,7 @@ void DrawGLTriangleFan(glpoly_t *p)
 	glEnd_fp();
 }
 
-static void DrawGLPolyMTex (glpoly_t *p)
+void DrawGLPolyMTex (glpoly_t *p)
 {
 	int	i;
 	float	*v;
@@ -1070,6 +1129,19 @@ void R_DrawTextureChains_Glow(qmodel_t *model, entity_t *ent, texchain_t chain)
 //
 //==============================================================================
 
+GLuint gl_bmodel_vbo = 0;
+
+void GL_DeleteBModelVertexBuffer(void)
+{
+	if (!(gl_vbo_able && gl_mtexable && gl_max_texture_units >= 3))
+		return;
+
+	GL_DeleteBuffersFunc(1, &gl_bmodel_vbo);
+	gl_bmodel_vbo = 0;
+
+	GL_ClearBufferBindings();
+}
+
 static unsigned int R_NumTriangleIndicesForSurf(msurface_t *s)
 {
 	return 3 * (s->numedges - 2);
@@ -1120,7 +1192,7 @@ static void R_FlushBatch()
 {
 	if (num_vbo_indices > 0)
 	{
-		glDrawElements(GL_TRIANGLES, num_vbo_indices, GL_UNSIGNED_INT, vbo_indices);
+		glDrawElements_fp(GL_TRIANGLES, num_vbo_indices, GL_UNSIGNED_INT, vbo_indices);
 		num_vbo_indices = 0;
 	}
 }
@@ -1407,7 +1479,6 @@ Draw lightmapped surfaces with fulbrights in one pass, using VBO.
 Requires 3 TMUs, OpenGL 2.0
 ================
 */
-/*
 void R_DrawTextureChains_GLSL(qmodel_t *model, entity_t *ent, texchain_t chain)
 {
 	int			i;
@@ -1518,7 +1589,6 @@ void R_DrawTextureChains_GLSL(qmodel_t *model, entity_t *ent, texchain_t chain)
 		glDisable_fp(GL_BLEND);
 	}
 }
-*/
 
 /*
 ================
@@ -1550,7 +1620,6 @@ void R_DrawLightmapChains(void)
 		}
 	}
 }
-
 /*
 =============
 R_DrawWorld -- johnfitz -- rewritten
@@ -2134,6 +2203,62 @@ LIGHTMAP ALLOCATION
 =============================================================================
 */
 
+/*
+================
+R_RenderDynamicLightmaps
+called during rendering
+================
+*/
+void R_RenderDynamicLightmaps(msurface_t *fa)
+{
+	byte		*base;
+	int			maps;
+	glRect_t    *theRect;
+	int smax, tmax;
+
+	if (fa->flags & SURF_DRAWTILED) //johnfitz -- not a lightmapped surface
+		return;
+
+	// add to lightmap chain
+	fa->polys->chain = lightmap_polys[fa->lightmaptexturenum];
+	lightmap_polys[fa->lightmaptexturenum] = fa->polys;
+
+	// check for lightmap modification
+	for (maps = 0; maps < MAXLIGHTMAPS && fa->styles[maps] != 255; maps++)
+		if (d_lightstylevalue[fa->styles[maps]] != fa->cached_light[maps])
+			goto dynamic;
+
+	if (fa->dlightframe == r_framecount	// dynamic this frame
+		|| fa->cached_dlight)			// dynamic previously
+	{
+	dynamic:
+		if (r_dynamic.value)
+		{
+			lightmap_modified[fa->lightmaptexturenum] = true;
+			theRect = &lightmap_rectchange[fa->lightmaptexturenum];
+			if (fa->light_t < theRect->t) {
+				if (theRect->h)
+					theRect->h += theRect->t - fa->light_t;
+				theRect->t = fa->light_t;
+			}
+			if (fa->light_s < theRect->l) {
+				if (theRect->w)
+					theRect->w += theRect->l - fa->light_s;
+				theRect->l = fa->light_s;
+			}
+			smax = (fa->extents[0] >> 4) + 1;
+			tmax = (fa->extents[1] >> 4) + 1;
+			if ((theRect->w + theRect->l) < (fa->light_s + smax))
+				theRect->w = (fa->light_s - theRect->l) + smax;
+			if ((theRect->h + theRect->t) < (fa->light_t + tmax))
+				theRect->h = (fa->light_t - theRect->t) + tmax;
+			base = lightmaps + fa->lightmaptexturenum*lightmap_bytes*BLOCK_WIDTH*BLOCK_HEIGHT;
+			base += fa->light_t * BLOCK_WIDTH * lightmap_bytes + fa->light_s * lightmap_bytes;
+			R_BuildLightMap(fa, base, BLOCK_WIDTH*lightmap_bytes);
+		}
+	}
+}
+
 // returns a texture number and the position inside it
 static unsigned int AllocBlock (int w, int h, int *x, int *y)
 {
@@ -2382,4 +2507,3 @@ void GL_BuildLightmaps (void)
 	if (gl_mtexable)
 		glActiveTextureARB_fp (GL_TEXTURE0_ARB);
 }
-

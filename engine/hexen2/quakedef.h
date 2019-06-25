@@ -219,6 +219,10 @@
 //#define BASE_ENT_ON		1
 //#define BASE_ENT_SENT	2
 
+#define vertAttrIndex 0
+#define texCoordsAttrIndex 1
+#define LMCoordsAttrIndex 2
+
 
 /* include our common header file	*/
 /* FIXME: kill this in the future and make each C

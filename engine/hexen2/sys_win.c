@@ -429,7 +429,7 @@ int Sys_FileOpenRead(const char *path, int *hndl)
 	{
 		sys_handles[i] = f;
 		*hndl = i;
-		retval = Sys_filelength(f);
+		retval = FS_filelength(f);
 	}
 
 	return retval;

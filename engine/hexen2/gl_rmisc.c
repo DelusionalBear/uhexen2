@@ -37,7 +37,7 @@ const int	color_offsets[MAX_PLAYER_CLASS] =
 #endif
 };
 
-extern cvar_t r_lerpmodels;
+extern cvar_t r_lerpmodels, r_lerpmove;
 extern cvar_t gl_overbright;
 extern cvar_t gl_overbright_models;
 extern cvar_t gl_farclip;
@@ -472,3 +472,83 @@ void D_FlushCaches (void)
 		D_ClearOpenGLTextures (gl_texlevel);
 }
 
+static GLuint gl_programs[16];
+static int gl_num_programs;
+
+
+/*
+====================
+R_DeleteShaders
+
+Deletes any GLSL programs that have been created.
+====================
+*/
+void R_DeleteShaders(void)
+{
+	int i;
+
+	if (!gl_glsl_able)
+		return;
+
+	for (i = 0; i < gl_num_programs; i++)
+	{
+		GL_DeleteProgramFunc(gl_programs[i]);
+		gl_programs[i] = 0;
+	}
+	gl_num_programs = 0;
+}
+GLuint current_array_buffer, current_element_array_buffer;
+
+
+/*
+====================
+GL_BindBuffer
+
+glBindBuffer wrapper
+====================
+*/
+void GL_BindBuffer(GLenum target, GLuint buffer)
+{
+	GLuint *cache;
+
+	if (!gl_vbo_able)
+		return;
+
+	switch (target)
+	{
+	case GL_ARRAY_BUFFER:
+		cache = &current_array_buffer;
+		break;
+	case GL_ELEMENT_ARRAY_BUFFER:
+		cache = &current_element_array_buffer;
+		break;
+	default:
+		Host_Error("GL_BindBuffer: unsupported target %d", (int)target);
+		return;
+	}
+
+	if (*cache != buffer)
+	{
+		*cache = buffer;
+		GL_BindBufferFunc(target, *cache);
+	}
+}
+
+/*
+====================
+GL_ClearBufferBindings
+
+This must be called if you do anything that could make the cached bindings
+invalid (e.g. manually binding, destroying the context).
+====================
+*/
+void GL_ClearBufferBindings()
+{
+	if (!gl_vbo_able)
+		return;
+
+	current_array_buffer = 0;
+	current_element_array_buffer = 0;
+	GL_BindBufferFunc(GL_ARRAY_BUFFER, 0);
+	GL_BindBufferFunc(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
