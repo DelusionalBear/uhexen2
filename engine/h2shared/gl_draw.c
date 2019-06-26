@@ -42,7 +42,7 @@ unsigned int	SHIFT_a;
 
 qboolean	draw_reinit = false;
 
-static cvar_t	gl_picmip = {"gl_picmip", "0", CVAR_NONE};
+static cvar_t	gl_picmip = {"gl_picmip", "0", CVAR_ARCHIVE};
 static cvar_t	gl_constretch = {"gl_constretch", "0", CVAR_ARCHIVE};
 static cvar_t	gl_texturemode = {"gl_texturemode", "", CVAR_ARCHIVE};
 static cvar_t	gl_texture_anisotropy = {"gl_texture_anisotropy", "1", CVAR_ARCHIVE};

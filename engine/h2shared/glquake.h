@@ -144,6 +144,8 @@ static glmode_t modes[] = {
 	{GL_LINEAR,  GL_LINEAR_MIPMAP_NEAREST,	"GL_LINEAR_MIPMAP_NEAREST"},
 	{GL_LINEAR,  GL_LINEAR_MIPMAP_LINEAR,	"GL_LINEAR_MIPMAP_LINEAR"},
 };
+#define NUM_GLMODES (int)(sizeof(modes)/sizeof(modes[0]))
+static int glmode_idx = NUM_GLMODES - 1; /* trilinear */
 
 //johnfitz -- GL_EXT_texture_env_combine
 //the values for GL_ARB_ are identical
@@ -375,7 +377,7 @@ extern	cvar_t	gl_coloredlight;
 extern	cvar_t	gl_colored_dynamic_lights;
 extern	cvar_t	gl_extra_dynamic_lights;
 extern	cvar_t	gl_lightmapfmt;
-extern	cvar_t	gl_max_size;
+static	cvar_t	gl_max_size;
 
 /* other globals */
 extern	int		gl_coloredstatic;	/* value of gl_coloredlight stored at level start */

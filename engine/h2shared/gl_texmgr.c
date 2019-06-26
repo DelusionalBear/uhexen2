@@ -22,9 +22,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-cvar_t		gl_texture_anisotropy = {"gl_texture_anisotropy", "1", true};
-cvar_t		gl_max_size = {"gl_max_size", "0"};
-cvar_t		gl_picmip = {"gl_picmip", "0"};
+extern cvar_t		gl_texture_anisotropy = {"gl_texture_anisotropy", "1", true};
+extern cvar_t		gl_max_size = {"gl_max_size", "0"};
+extern cvar_t		gl_picmip = {"gl_picmip", "0"};
+extern cvar_t		gl_texturemode = { "gl_texturemode", "", CVAR_ARCHIVE };
 int			gl_hardware_maxsize;
 //const int	gl_solid_format = 3;
 //const int	gl_alpha_format = 4;
@@ -40,9 +41,6 @@ int numgltextures;
 
 ================================================================================
 */
-
-#define NUM_GLMODES 6
-int gl_texturemode = 5; // bilinear
 
 /*
 ===============
@@ -80,13 +78,13 @@ void TexMgr_SetFilterModes (gltexture_t *glt)
 	}
 	else if (glt->flags & TEXPREF_MIPMAP)
 	{
-		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
-		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].minfilter);
+		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode.integer].magfilter);
+		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode.integer].minfilter);
 	}
 	else
 	{
-		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode].magfilter);
-		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode].magfilter);
+		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_texturemode.integer].magfilter);
+		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_texturemode.integer].magfilter);
 	}
 
 	glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, gl_texture_anisotropy.value);
@@ -106,7 +104,7 @@ void TexMgr_TextureMode_f (void)
 	switch (Cmd_Argc())
 	{
 	case 1:
-		Con_Printf ("\"gl_texturemode\" is \"%s\"\n", modes[gl_texturemode].name);
+		Con_Printf ("\"gl_texturemode\" is \"%s\"\n", modes[gl_texturemode.integer].name);
 		break;
 	case 2:
 		arg = Cmd_Argv(1);
@@ -115,7 +113,7 @@ void TexMgr_TextureMode_f (void)
 			for (i=0; i<NUM_GLMODES; i++)
 				if (!stricmp (modes[i].name, arg))
 				{
-					gl_texturemode = i;
+					gl_texturemode.integer = i;
 					goto stuff;
 				}
 			Con_Printf ("\"%s\" is not a valid texturemode\n", arg);
@@ -129,7 +127,7 @@ void TexMgr_TextureMode_f (void)
 				Con_Printf ("\"%s\" is not a valid texturemode\n", arg);
 				return;
 			}
-			gl_texturemode = i - 1;
+			gl_texturemode.integer = i - 1;
 		}
 		else
 			Con_Printf ("\"%s\" is not a valid texturemode\n", arg);
@@ -530,43 +528,46 @@ must be called before any texture loading
 */
 void TexMgr_Init (void)
 {
-	int i, mark;
-	static byte notexture_data[16] = {159,91,83,255,0,0,0,255,0,0,0,255,159,91,83,255}; //black and pink checker
-	static byte nulltexture_data[16] = {127,191,255,255,0,0,0,255,0,0,0,255,127,191,255,255}; //black and blue checker
+	int i;
+	static byte notexture_data[16] = { 159,91,83,255,0,0,0,255,0,0,0,255,159,91,83,255 }; //black and pink checker
+	static byte nulltexture_data[16] = { 127,191,255,255,0,0,0,255,0,0,0,255,127,191,255,255 }; //black and blue checker
 	extern texture_t *r_notexture_mip, *r_notexture_mip2;
 
 	// init texture list
-	free_gltextures = (gltexture_t *) Hunk_AllocName (MAX_GLTEXTURES * sizeof(gltexture_t), "gltextures");
+	free_gltextures = (gltexture_t *)Hunk_AllocName(MAX_GLTEXTURES * sizeof(gltexture_t), "gltextures");
 	active_gltextures = NULL;
-	for (i=0; i<MAX_GLTEXTURES-1; i++)
-		free_gltextures[i].next = &free_gltextures[i+1];
+	for (i = 0; i < MAX_GLTEXTURES - 1; i++)
+		free_gltextures[i].next = &free_gltextures[i + 1];
 	free_gltextures[i].next = NULL;
 	numgltextures = 0;
 
 	// palette
-	TexMgr_LoadPalette ();
+	TexMgr_LoadPalette();
 
-	Cvar_RegisterVariable (&gl_max_size, CVAR_NONE);
-	Cvar_RegisterVariable (&gl_picmip, CVAR_NONE);
-	Cvar_RegisterVariable (&gl_texture_anisotropy, &TexMgr_Anisotropy_f);
-	Cmd_AddCommand ("gl_texturemode", &TexMgr_TextureMode_f);
-	Cmd_AddCommand ("gl_describetexturemodes", &TexMgr_DescribeTextureModes_f);
-	Cmd_AddCommand ("imagelist", &TexMgr_Imagelist_f);
-	Cmd_AddCommand ("imagedump", &TexMgr_Imagedump_f);
+	Cvar_RegisterVariable(&gl_max_size);
+	Cvar_RegisterVariable(&gl_picmip);
+	Cvar_RegisterVariable(&gl_texture_anisotropy);
+	Cvar_SetCallback(&gl_texture_anisotropy, &TexMgr_Anisotropy_f);
+	gl_texturemode.string = modes[glmode_idx].name;
+	Cvar_RegisterVariable(&gl_texturemode);
+	Cvar_SetCallback(&gl_texturemode, &TexMgr_TextureMode_f);
+	Cmd_AddCommand("gl_describetexturemodes", &TexMgr_DescribeTextureModes_f);
+	Cmd_AddCommand("imagelist", &TexMgr_Imagelist_f);
+	Cmd_AddCommand("imagedump", &TexMgr_Imagedump_f);
 
 	// poll max size from hardware
-	glGetIntegerv_fp (GL_MAX_TEXTURE_SIZE, &gl_hardware_maxsize);
+	glGetIntegerv_fp(GL_MAX_TEXTURE_SIZE, &gl_hardware_maxsize);
 
 	// load notexture images
-	notexture = TexMgr_LoadImage (NULL, "notexture", 2, 2, SRC_RGBA, notexture_data, "", (unsigned)notexture_data, TEXPREF_NEAREST | TEXPREF_PERSIST | TEXPREF_NOPICMIP);
-	nulltexture = TexMgr_LoadImage (NULL, "nulltexture", 2, 2, SRC_RGBA, nulltexture_data, "", (unsigned)nulltexture_data, TEXPREF_NEAREST | TEXPREF_PERSIST | TEXPREF_NOPICMIP);
+	notexture = TexMgr_LoadImage(NULL, "notexture", 2, 2, SRC_RGBA, notexture_data, "", (src_offset_t)notexture_data, TEXPREF_NEAREST | TEXPREF_PERSIST | TEXPREF_NOPICMIP);
+	nulltexture = TexMgr_LoadImage(NULL, "nulltexture", 2, 2, SRC_RGBA, nulltexture_data, "", (src_offset_t)nulltexture_data, TEXPREF_NEAREST | TEXPREF_PERSIST | TEXPREF_NOPICMIP);
 
 	//have to assign these here becuase Mod_Init is called before TexMgr_Init
 	r_notexture_mip->gltexture = r_notexture_mip2->gltexture = notexture;
 
 	//set safe size for warpimages
 	gl_warpimagesize = 0;
-	TexMgr_RecalcWarpImageSize ();
+	TexMgr_RecalcWarpImageSize();
 }
 
 /*
