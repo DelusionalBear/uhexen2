@@ -65,6 +65,16 @@ void Mod_Init (void)
 	Cvar_RegisterVariable(&gl_subdivide_size);
 	Cmd_AddCommand ("mcache", Mod_Print);
 
+	//johnfitz -- create notexture miptex
+	r_notexture_mip = (texture_t *)Hunk_AllocName(sizeof(texture_t), "r_notexture_mip");
+	strcpy(r_notexture_mip->name, "notexture");
+	r_notexture_mip->height = r_notexture_mip->width = 32;
+
+	r_notexture_mip2 = (texture_t *)Hunk_AllocName(sizeof(texture_t), "r_notexture_mip2");
+	strcpy(r_notexture_mip2->name, "notexture2");
+	r_notexture_mip2->height = r_notexture_mip2->width = 32;
+	//johnfitz
+
 	memset (mod_novis, 0xff, sizeof(mod_novis));
 }
 

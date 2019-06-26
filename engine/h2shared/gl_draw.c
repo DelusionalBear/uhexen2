@@ -614,6 +614,7 @@ void Draw_Init (void)
 	SwapPic (p);
 	draw_backtile = GL_LoadPicTexture (p);
 
+
 	// load the crosshair texture
 	cs_texture = GL_LoadPixmap ("crosshair", cs_data);
 
