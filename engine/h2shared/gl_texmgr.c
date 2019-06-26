@@ -546,8 +546,8 @@ void TexMgr_Init (void)
 	// palette
 	TexMgr_LoadPalette ();
 
-	Cvar_RegisterVariable (&gl_max_size, NULL);
-	Cvar_RegisterVariable (&gl_picmip, NULL);
+	Cvar_RegisterVariable (&gl_max_size, CVAR_NONE);
+	Cvar_RegisterVariable (&gl_picmip, CVAR_NONE);
 	Cvar_RegisterVariable (&gl_texture_anisotropy, &TexMgr_Anisotropy_f);
 	Cmd_AddCommand ("gl_texturemode", &TexMgr_TextureMode_f);
 	Cmd_AddCommand ("gl_describetexturemodes", &TexMgr_DescribeTextureModes_f);
@@ -598,7 +598,7 @@ int TexMgr_SafeTextureSize (int s)
 {
 	s = TexMgr_Pad(s);
 	if ((int)gl_max_size.value > 0)
-		s = min(TexMgr_Pad((int)gl_max_size.value), s);
+		s = q_min(TexMgr_Pad((int)gl_max_size.value), s);
 	s = q_min(gl_hardware_maxsize, s);
 	return s;
 }

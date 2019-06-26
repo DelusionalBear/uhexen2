@@ -564,7 +564,10 @@ void Draw_Init (void)
 		if (chars[i] == 0)
 			chars[i] = 255;	// proper transparent color
 	}
-	char_texture = GL_LoadTexture ("charset", chars, 256, 128, TEX_ALPHA|TEX_NEAREST);
+
+	//char_texture = GL_LoadTexture ("charset", chars, 256, 128, TEX_ALPHA|TEX_NEAREST);
+	char_texture = TexMgr_LoadImage(NULL, WADFILENAME":charset", 256, 128, SRC_INDEXED, chars,
+		WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP | TEXPREF_CONCHARS);
 
 	// load the small characters for status bar
 	chars = (byte *) W_GetLumpName("tinyfont");
@@ -573,7 +576,11 @@ void Draw_Init (void)
 		if (chars[i] == 0)
 			chars[i] = 255;	// proper transparent color
 	}
-	char_smalltexture = GL_LoadTexture ("smallcharset", chars, 128, 32, TEX_ALPHA|TEX_NEAREST);
+
+	//char_smalltexture = GL_LoadTexture ("smallcharset", chars, 128, 32, TEX_ALPHA|TEX_NEAREST);
+	char_smalltexture = TexMgr_LoadImage(NULL, WADFILENAME":smallcharset", 128, 32, SRC_INDEXED, chars,
+		WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP | TEXPREF_CONCHARS);
+
 
 	// load the big menu font
 	// Note: old version of demo has bigfont.lmp, not bigfont2.lmp
@@ -586,13 +593,20 @@ void Draw_Init (void)
 		if (p->data[i] == 0)
 			p->data[i] = 255;	// proper transparent color
 	}
-	char_menufonttexture = GL_LoadTexture ("menufont", p->data, p->width, p->height, TEX_ALPHA|TEX_LINEAR);
+
+	//char_menufonttexture = GL_LoadTexture ("menufont", p->data, p->width, p->height, TEX_ALPHA|TEX_LINEAR);
+	char_menufonttexture = TexMgr_LoadImage(NULL, WADFILENAME":menufont", p->width, p->height, SRC_INDEXED, p->data,
+		WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP );
+
 
 	// load the console background
 	p = (qpic_t *)FS_LoadTempFile ("gfx/menu/conback.lmp", NULL);
 	Draw_PicCheckError (p, "gfx/menu/conback.lmp");
 	SwapPic (p);
-	conback = GL_LoadTexture ("conback", p->data, p->width, p->height, TEX_LINEAR);
+
+	// conback = GL_LoadTexture ("conback", p->data, p->width, p->height, TEX_LINEAR);
+	conback = TexMgr_LoadImage(NULL, WADFILENAME":conback", p->width, p->height, SRC_INDEXED, p->data,
+		WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP);
 
 	// load the backtile
 	p = (qpic_t *)FS_LoadTempFile ("gfx/menu/backtile.lmp", NULL);
@@ -1838,71 +1852,6 @@ static void GL_Upload8 (byte *data, gltexture_t *glt)
 	Hunk_FreeToLowMark(mark);
 }
 
-
-/*
-================
-GL_LoadTexture
-================
-*/
-GLuint GL_LoadTexture (const char *identifier, byte *data, int width, int height, int flags)
-{
-	int		i, size;
-	unsigned short	crc;
-	gltexture_t	*glt;
-
-#if !defined (H2W)
-	if (cls.state == ca_dedicated)
-		return GL_UNUSED_TEXTURE;
-#endif
-
-	size = width * height;
-	if (flags & TEX_RGBA)
-		size *= 4;
-	crc = CRC_Block (data, size);
-
-	if (identifier[0])
-	{
-		/* texture already present? */
-		for (i = 0, glt = gltextures; i < numgltextures; i++, glt++)
-		{
-			if (!strcmp (identifier, glt->name))
-			{
-				if (crc != glt->source_crc ||
-				    (glt->flags & TEX_MIPMAP) != (flags & TEX_MIPMAP) ||
-				    width  != glt->width || height != glt->height)
-				{ /* not the same, delete and rebind to new image */
-					Con_DPrintf ("Texture cache mismatch: %lu, %s, reloading\n",
-							    (unsigned long)glt->texnum, identifier);
-					glDeleteTextures_fp (1, &glt->texnum);
-					goto gl_rebind;
-				}
-				else	return glt->texnum;	/* the same is present. */
-			}
-		}
-	}
-
-	if (numgltextures >= MAX_GLTEXTURES)
-		Sys_Error ("%s: cache full, max is %i textures.", __thisfunc__, MAX_GLTEXTURES);
-
-	glt = &gltextures[numgltextures];
-	numgltextures++;
-	q_strlcpy (glt->name, identifier, MAX_QPATH);
-
-gl_rebind:
-	glGenTextures_fp(1, &glt->texnum);
-	glt->width = width;
-	glt->height = height;
-	glt->flags = flags;
-	glt->source_crc = crc;
-
-	GL_Bind (glt->texnum);
-	if (flags & TEX_RGBA)
-		GL_Upload32 ((unsigned int *)data, glt);
-	else	GL_Upload8 (data, glt);
-
-	return glt->texnum;
-}
-
 /*
 ===============
 GL_LoadPixmap
@@ -1936,7 +1885,10 @@ static GLuint GL_LoadPixmap (const char *name, const char *data)
 		}
 	}
 
-	return GL_LoadTexture (name, (unsigned char *) pixels, 32, 32, TEX_ALPHA | TEX_RGBA | TEX_LINEAR);
+	//return GL_LoadTexture (name, (unsigned char *) pixels, 32, 32, TEX_ALPHA | TEX_RGBA | TEX_LINEAR);
+	return TexMgr_LoadImage(NULL, name, 32, 32, SRC_INDEXED, (unsigned char *)pixels,
+		WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP);
+
 }
 
 /*
@@ -1946,6 +1898,8 @@ GL_LoadPicTexture
 */
 GLuint GL_LoadPicTexture (qpic_t *pic)
 {
-	return GL_LoadTexture ("", pic->data, pic->width, pic->height, TEX_ALPHA|TEX_LINEAR);
+	//return GL_LoadTexture ("", pic->data, pic->width, pic->height, TEX_ALPHA|TEX_LINEAR);
+	return TexMgr_LoadImage(NULL, "", pic->width, pic->height, SRC_INDEXED, pic->data,
+		WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP);
 }
 

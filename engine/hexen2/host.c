@@ -1037,6 +1037,7 @@ void Host_Init (void)
 			Sys_Error ("Couldn't load gfx/colormap.lmp");
 
 		VID_Init (host_basepal);
+		TexMgr_Init(); //johnfitz
 		Draw_Init ();
 		SCR_Init ();
 		R_Init ();

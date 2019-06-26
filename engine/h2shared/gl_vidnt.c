@@ -168,6 +168,8 @@ static cvar_t	vid_config_glx = {"vid_config_glx", "640", CVAR_ARCHIVE};
 static cvar_t	vid_config_gly = {"vid_config_gly", "480", CVAR_ARCHIVE};
 static cvar_t	vid_config_bpp = {"vid_config_bpp", "16", CVAR_ARCHIVE};
 static cvar_t	vid_config_fscr= {"vid_config_fscr", "1", CVAR_ARCHIVE};
+cvar_t	vid_bpp = { "vid_bpp", "16", CVAR_ARCHIVE };
+
 // cvars for compatibility with the software version
 static cvar_t	vid_wait = {"vid_wait", "-1", CVAR_ARCHIVE};
 static cvar_t	vid_maxpages = {"vid_maxpages", "3", CVAR_ARCHIVE};

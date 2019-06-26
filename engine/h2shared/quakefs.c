@@ -29,7 +29,7 @@
 #endif
 #include "filenames.h"
 
-static searchpath_t	*fs_searchpaths;
+searchpath_t	*fs_searchpaths;
 static searchpath_t	*fs_base_searchpaths;	/* without gamedirs */
 
 static const char	*fs_basedir;

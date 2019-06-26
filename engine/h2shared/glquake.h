@@ -405,8 +405,6 @@ void GL_EndRendering (void);
 
 void GL_Set2D (void);
 
-GLuint GL_LoadTexture (const char *identifier, byte *data,
-			int width, int height, int flags);
 /* LoadTexture Flags */
 #define	TEX_DEFAULT		0
 #define	TEX_MIPMAP		(1 << 1)
