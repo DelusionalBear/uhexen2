@@ -68,5 +68,27 @@ extern	int		trans_level;
 extern	int			scr_copytop;
 extern	int			scr_copyeverything;
 
+//johnfitz -- stuff for 2d drawing control
+typedef enum {
+	CANVAS_NONE,
+	CANVAS_DEFAULT,
+	CANVAS_CONSOLE,
+	CANVAS_MENU,
+	CANVAS_SBAR,
+	CANVAS_WARPIMAGE,
+	CANVAS_CROSSHAIR,
+	CANVAS_BOTTOMLEFT,
+	CANVAS_BOTTOMRIGHT,
+	CANVAS_TOPRIGHT,
+	CANVAS_INVALID = -1
+} canvastype;
+static	cvar_t		scr_menuscale;
+static	cvar_t		scr_sbarscale;
+static	cvar_t		scr_conwidth;
+static	cvar_t		scr_conscale;
+static	cvar_t		scr_scale;
+static	cvar_t		scr_crosshairscale;
+//johnfitz
+
 #endif	/* __HX2_SCREEN_H */
 

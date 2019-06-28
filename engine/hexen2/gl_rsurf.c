@@ -1905,7 +1905,9 @@ void R_DrawBrushModel (entity_t *e, qboolean Translucent)
 	qmodel_t	*clmodel;
 	qboolean	rotated;
 
-	currenttexture = GL_UNUSED_TEXTURE;
+	currenttexture[0] = GL_UNUSED_TEXTURE;
+	currenttexture[1] = GL_UNUSED_TEXTURE;
+	currenttexture[2] = GL_UNUSED_TEXTURE;
 
 	clmodel = e->model;
 

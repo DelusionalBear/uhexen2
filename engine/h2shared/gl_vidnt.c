@@ -181,7 +181,7 @@ static cvar_t	_vid_default_mode_win = {"_vid_default_mode_win", "3", CVAR_ARCHIV
 static cvar_t	vid_stretch_by_2 = {"vid_stretch_by_2", "1", CVAR_ARCHIVE};
 static cvar_t	vid_config_x = {"vid_config_x", "800", CVAR_ARCHIVE};
 static cvar_t	vid_config_y = {"vid_config_y", "600", CVAR_ARCHIVE};
-
+extern cvar_t	vid_gamma = { "gamma", "1", CVAR_ARCHIVE }; //johnfitz -- moved here from view.c
 byte		globalcolormap[VID_GRADES*256];
 float		RTint[256], GTint[256], BTint[256];
 unsigned short	d_8to16table[256];

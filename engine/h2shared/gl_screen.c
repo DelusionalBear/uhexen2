@@ -101,6 +101,16 @@ static	cvar_t	scr_showpause = {"showpause", "1", CVAR_NONE};
 static	cvar_t	scr_showfps = {"showfps", "0", CVAR_NONE};
 //static	cvar_t	gl_triplebuffer = {"gl_triplebuffer", "0", CVAR_ARCHIVE};
 
+//johnfitz -- new cvars
+extern cvar_t		scr_menuscale = { "scr_menuscale", "1", CVAR_ARCHIVE };
+extern cvar_t		scr_sbarscale = { "scr_sbarscale", "1", CVAR_ARCHIVE };
+extern cvar_t		scr_sbaralpha = { "scr_sbaralpha", "0.75", CVAR_ARCHIVE };
+extern cvar_t		scr_conwidth = { "scr_conwidth", "0", CVAR_ARCHIVE };
+extern cvar_t		scr_conscale = { "scr_conscale", "1", CVAR_ARCHIVE };
+extern cvar_t		scr_crosshairscale = { "scr_crosshairscale", "1", CVAR_ARCHIVE };
+extern cvar_t		scr_clock = { "scr_clock", "0", CVAR_NONE };
+//johnfitz
+
 #if !defined(H2W)
 static qboolean	scr_drawloading;
 static float	scr_disabled_time;
@@ -119,6 +129,7 @@ static void SCR_ScreenShot_f (void);
 static const char	*plaquemessage = "";	// pointer to current plaque message
 
 static void Plaque_Draw (const char *message, qboolean AlwaysDraw);
+int	scr_tileclear_updates = 0; //johnfitz
 #if !defined(H2W)
 /* procedures for the mission pack intro messages and objectives */
 static void Info_Plaque_Draw (const char *message);
@@ -420,6 +431,21 @@ static void SCR_SizeDown_f (void)
 	Cvar_SetValueQuick (&scr_viewsize, scr_viewsize.integer - 10);
 }
 
+/*
+==================
+SCR_Conwidth_f -- johnfitz -- called when scr_conwidth or scr_conscale changes
+==================
+*/
+void SCR_Conwidth_f(cvar_t *var)
+{
+	vid.recalc_refdef = 1;
+	vid.conwidth = (scr_conwidth.value > 0) ? (int)scr_conwidth.value : (scr_conscale.value > 0) ? (int)(vid.width / scr_conscale.value) : vid.width;
+	vid.conwidth = CLAMP(320, vid.conwidth, vid.width);
+	vid.conwidth &= 0xFFFFFFF8;
+	vid.conheight = vid.conwidth * vid.height / vid.width;
+}
+
+
 static void SCR_Callback_refdef (cvar_t *var)
 {
 	vid.recalc_refdef = 1;
@@ -456,6 +482,18 @@ void SCR_Init (void)
 	Cvar_RegisterVariable (&scr_showfps);
 	Cvar_RegisterVariable (&scr_centertime);
 //	Cvar_RegisterVariable (&gl_triplebuffer);
+	//johnfitz -- new cvars
+	Cvar_RegisterVariable(&scr_menuscale);
+	Cvar_RegisterVariable(&scr_sbarscale);
+	Cvar_SetCallback(&scr_sbaralpha, SCR_Callback_refdef);
+	Cvar_RegisterVariable(&scr_sbaralpha);
+	Cvar_SetCallback(&scr_conwidth, &SCR_Conwidth_f);
+	Cvar_SetCallback(&scr_conscale, &SCR_Conwidth_f);
+	Cvar_RegisterVariable(&scr_conwidth);
+	Cvar_RegisterVariable(&scr_conscale);
+	Cvar_RegisterVariable(&scr_crosshairscale);
+	Cvar_RegisterVariable(&scr_clock);
+	//johnfitz
 
 	Cmd_AddCommand ("screenshot",SCR_ScreenShot_f);
 	Cmd_AddCommand ("sizeup",SCR_SizeUp_f);
@@ -1167,50 +1205,47 @@ static void SB_IntermissionOverlay (void)
 
 
 /*
-===============
+==================
 SCR_TileClear
-
-================
+johnfitz -- modified to use glwidth/glheight instead of vid.width/vid.height
+		also fixed the dimentions of right and top panels
+		also added scr_tileclear_updates
+==================
 */
-static void SCR_TileClear (void)
+void SCR_TileClear(void)
 {
-    if (vid.conwidth > 320) {
+	//ericw -- added check for glsl gamma. TODO: remove this ugly optimization?
+	if (scr_tileclear_updates >= vid.numpages && !gl_clear.value && !(gl_glsl_gamma_able && vid_gamma.value != 1))
+		return;
+	scr_tileclear_updates++;
+
 	if (r_refdef.vrect.x > 0)
 	{
 		// left
-		Draw_TileClear (0, 0, r_refdef.vrect.x, vid.height);
+		Draw_TileClear(0,
+			0,
+			r_refdef.vrect.x,
+			glheight - sb_lines);
 		// right
-		Draw_TileClear (r_refdef.vrect.x + r_refdef.vrect.width, 0,
-			vid.width - r_refdef.vrect.x + r_refdef.vrect.width, vid.height);
+		Draw_TileClear(r_refdef.vrect.x + r_refdef.vrect.width,
+			0,
+			glwidth - r_refdef.vrect.x - r_refdef.vrect.width,
+			glheight - sb_lines);
 	}
-//	if (r_refdef.vrect.y > 0) // if (r_refdef.vrect.height < vid.height - 44)
-	{
-		// top
-		Draw_TileClear (r_refdef.vrect.x, 0,
-			r_refdef.vrect.x + r_refdef.vrect.width, r_refdef.vrect.y);
-		// bottom
-		Draw_TileClear (r_refdef.vrect.x, r_refdef.vrect.y + r_refdef.vrect.height,
-			r_refdef.vrect.width, vid.height - (r_refdef.vrect.height + r_refdef.vrect.y));
-	}
-    } else {
-	if (r_refdef.vrect.x > 0)
-	{
-		// left
-		Draw_TileClear (0, 0, r_refdef.vrect.x, vid.height - sb_lines);
-		// right
-		Draw_TileClear (r_refdef.vrect.x + r_refdef.vrect.width, 0,
-			vid.width - r_refdef.vrect.x + r_refdef.vrect.width, vid.height - sb_lines);
-	}
+
 	if (r_refdef.vrect.y > 0)
 	{
 		// top
-		Draw_TileClear (r_refdef.vrect.x, 0,
-			r_refdef.vrect.x + r_refdef.vrect.width, r_refdef.vrect.y);
+		Draw_TileClear(r_refdef.vrect.x,
+			0,
+			r_refdef.vrect.width,
+			r_refdef.vrect.y);
 		// bottom
-		Draw_TileClear (r_refdef.vrect.x, r_refdef.vrect.y + r_refdef.vrect.height,
-			r_refdef.vrect.width, vid.height - sb_lines - (r_refdef.vrect.height + r_refdef.vrect.y));
+		Draw_TileClear(r_refdef.vrect.x,
+			r_refdef.vrect.y + r_refdef.vrect.height,
+			r_refdef.vrect.width,
+			glheight - r_refdef.vrect.y - r_refdef.vrect.height - sb_lines);
 	}
-    }
 }
 
 //=============================================================================

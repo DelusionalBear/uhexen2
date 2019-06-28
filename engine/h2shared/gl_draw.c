@@ -25,6 +25,7 @@
 
 #include "quakedef.h"
 
+cvar_t		scr_conalpha = { "scr_conalpha", "0.5", CVAR_ARCHIVE }; //johnfitz
 qpic_t             *pic_nul; //johnfitz -- for missing gfx, don't crash
 
 #if ENDIAN_RUNTIME_DETECT
@@ -50,10 +51,10 @@ static cvar_t	gl_texture_anisotropy = {"gl_texture_anisotropy", "1", CVAR_ARCHIV
 static GLuint		menuplyr_textures[MAX_PLAYER_CLASS];	// player textures in multiplayer config screens
 static GLuint		draw_backtile;
 static GLuint		conback;
-static GLuint		char_texture;
-static GLuint		cs_texture;	// crosshair texture
-static GLuint		char_smalltexture;
-static GLuint		char_menufonttexture;
+gltexture_t *char_texture; //johnfitz
+gltexture_t *cs_texture;	// crosshair texture
+gltexture_t *char_smalltexture;
+gltexture_t *char_menufonttexture;
 
 extern	cvar_t	r_wateralpha;
 
@@ -120,6 +121,7 @@ static GLuint GL_LoadPixmap (const char *name, const char *data);
 static void GL_Upload32 (unsigned int *data, gltexture_t *glt);
 static void GL_Upload8 (byte *data, gltexture_t *glt);
 
+canvastype currentcanvas = CANVAS_NONE; //johnfitz -- for GL_SetCanvas
 
 //=============================================================================
 /* Support Routines */
@@ -545,6 +547,8 @@ void Draw_Init (void)
 	byte		*chars;
 	int		i;
 
+	Cvar_RegisterVariable(&scr_conalpha);
+
 	if (!draw_reinit)
 	{
 		Cvar_RegisterVariable (&gl_picmip);
@@ -566,7 +570,9 @@ void Draw_Init (void)
 	}
 
 	//char_texture = GL_LoadTexture ("charset", chars, 256, 128, TEX_ALPHA|TEX_NEAREST);
-	char_texture = TexMgr_LoadImage(NULL, WADFILENAME":charset", 256, 128, SRC_INDEXED, chars,
+	//char_texture = TexMgr_LoadImage(NULL, WADFILENAME":charset", 256, 128, SRC_INDEXED, chars,
+	//	WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP | TEXPREF_CONCHARS);
+	char_texture = TexMgr_LoadImage(NULL, "gfx/menu/conchars.lmp", 256, 128, SRC_INDEXED, chars,
 		WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP | TEXPREF_CONCHARS);
 
 	// load the small characters for status bar
@@ -578,7 +584,9 @@ void Draw_Init (void)
 	}
 
 	//char_smalltexture = GL_LoadTexture ("smallcharset", chars, 128, 32, TEX_ALPHA|TEX_NEAREST);
-	char_smalltexture = TexMgr_LoadImage(NULL, WADFILENAME":smallcharset", 128, 32, SRC_INDEXED, chars,
+	//char_smalltexture = TexMgr_LoadImage(NULL, WADFILENAME":smallcharset", 128, 32, SRC_INDEXED, chars,
+	//	WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP | TEXPREF_CONCHARS);
+	char_smalltexture = TexMgr_LoadImage(NULL, "gfx/menu/conchars.lmp", 128, 32, SRC_INDEXED, chars,
 		WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP | TEXPREF_CONCHARS);
 
 
@@ -1222,6 +1230,33 @@ Draw_ConsoleBackground
 
 ================
 */
+/*
+static void Draw_ConsolePic (int lines, float ofs, qpic_t pic, float alpha)
+{
+	glDisable_fp(GL_ALPHA_TEST);
+	glEnable_fp (GL_BLEND);
+	glCullFace_fp(GL_FRONT);
+	glColor4f_fp (1,1,1,alpha);
+	GL_Bind (pic);
+
+	glBegin_fp (GL_QUADS);
+	glTexCoord2f_fp (0, 0 + ofs);
+	glVertex2f_fp (0, 0);
+	glTexCoord2f_fp (1, 0 + ofs);
+	glVertex2f_fp (vid.conwidth, 0);
+	glTexCoord2f_fp (1, 1);
+	glVertex2f_fp (vid.conwidth, lines);
+	glTexCoord2f_fp (0, 1);
+	glVertex2f_fp (0, lines);
+	glEnd_fp ();
+
+	glColor4f_fp (1,1,1,1);
+	glEnable_fp(GL_ALPHA_TEST);
+	glDisable_fp (GL_BLEND);
+}
+*/
+
+/*
 static void Draw_ConsolePic (int lines, float ofs, GLuint num, float alpha)
 {
 	glDisable_fp(GL_ALPHA_TEST);
@@ -1245,6 +1280,7 @@ static void Draw_ConsolePic (int lines, float ofs, GLuint num, float alpha)
 	glEnable_fp(GL_ALPHA_TEST);
 	glDisable_fp (GL_BLEND);
 }
+*/
 
 static void Draw_ConsoleVersionInfo (int lines)
 {
@@ -1256,6 +1292,52 @@ static void Draw_ConsoleVersionInfo (int lines)
 		Draw_Character (x + (int)(ptr - ver) * 8, y, *ptr | 0x100);
 }
 
+/*
+================
+Draw_ConsoleBackground -- johnfitz -- rewritten
+================
+*/
+void Draw_ConsoleBackground(void)
+{
+	qpic_t *pic;
+	float alpha;
+
+	//pic = Draw_CachePic("gfx/conback.lmp");
+	pic = Draw_CachePic("gfx/menu/conback.lmp");
+	//conback = TexMgr_LoadImage(NULL, WADFILENAME":conback", p->width, p->height, SRC_INDEXED, p->data,
+	//	WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP);
+
+	pic->width = vid.conwidth;
+	pic->height = vid.conheight;
+
+	alpha = (con_forcedup) ? 1.0 : scr_conalpha.value;
+
+	GL_SetCanvas(CANVAS_CONSOLE); //in case this is called from weird places
+
+	if (alpha > 0.0)
+	{
+		if (alpha < 1.0)
+		{
+			glEnable_fp(GL_BLEND);
+			glColor4f_fp(1, 1, 1, alpha);
+			glDisable_fp(GL_ALPHA_TEST);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		}
+
+		Draw_Pic(0, 0, pic);
+
+		if (alpha < 1.0)
+		{
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			glEnable_fp(GL_ALPHA_TEST);
+			glDisable_fp(GL_BLEND);
+			glColor4f_fp(1, 1, 1, 1);
+		}
+	}
+}
+
+
+/*
 void Draw_ConsoleBackground (int lines)
 {
 	int	y;
@@ -1271,10 +1353,9 @@ void Draw_ConsoleBackground (int lines)
 	if (cls.download)
 		return;
 #endif	/* H2W */
-
-	Draw_ConsoleVersionInfo (lines);
-}
-
+//	Draw_ConsoleVersionInfo (lines);
+//}
+//*/
 
 /*
 =============
@@ -1392,11 +1473,94 @@ void Draw_FadeScreen (void)
 
 /*
 ================
+GL_SetCanvas -- johnfitz -- support various canvas types
+================
+*/
+void GL_SetCanvas(canvastype newcanvas)
+{
+	extern vrect_t scr_vrect;
+	float s;
+	int lines;
+
+	if (newcanvas == currentcanvas)
+		return;
+
+	currentcanvas = newcanvas;
+
+	glMatrixMode_fp(GL_PROJECTION);
+	glLoadIdentity_fp();
+
+	switch (newcanvas)
+	{
+	case CANVAS_DEFAULT:
+		glOrtho_fp(0, glwidth, glheight, 0, -99999, 99999);
+		glViewport_fp(glx, gly, glwidth, glheight);
+		break;
+	case CANVAS_CONSOLE:
+		lines = vid.conheight - (scr_con_current * vid.conheight / glheight);
+		glOrtho_fp(0, vid.conwidth, vid.conheight + lines, lines, -99999, 99999);
+		glViewport_fp(glx, gly, glwidth, glheight);
+		break;
+	case CANVAS_MENU:
+		s = q_min((float)glwidth / 320.0, (float)glheight / 200.0);
+		s = CLAMP(1.0, scr_menuscale.value, s);
+		// ericw -- doubled width to 640 to accommodate long keybindings
+		glOrtho_fp(0, 640, 200, 0, -99999, 99999);
+		glViewport_fp(glx + (glwidth - 320 * s) / 2, gly + (glheight - 200 * s) / 2, 640 * s, 200 * s);
+		break;
+	case CANVAS_SBAR:
+		s = CLAMP(1.0, scr_sbarscale.value, (float)glwidth / 320.0);
+		if (cl.gametype == GAME_DEATHMATCH)
+		{
+			glOrtho_fp(0, glwidth / s, 48, 0, -99999, 99999);
+			glViewport_fp(glx, gly, glwidth, 48 * s);
+		}
+		else
+		{
+			glOrtho_fp(0, 320, 48, 0, -99999, 99999);
+			glViewport_fp(glx + (glwidth - 320 * s) / 2, gly, 320 * s, 48 * s);
+		}
+		break;
+	case CANVAS_WARPIMAGE:
+		glOrtho_fp(0, 128, 0, 128, -99999, 99999);
+		glViewport_fp(glx, gly + glheight - gl_warpimagesize, gl_warpimagesize, gl_warpimagesize);
+		break;
+	case CANVAS_CROSSHAIR: //0,0 is center of viewport
+		s = CLAMP(1.0, scr_crosshairscale.value, 10.0);
+		glOrtho_fp(scr_vrect.width / -2 / s, scr_vrect.width / 2 / s, scr_vrect.height / 2 / s, scr_vrect.height / -2 / s, -99999, 99999);
+		glViewport_fp(scr_vrect.x, glheight - scr_vrect.y - scr_vrect.height, scr_vrect.width & ~1, scr_vrect.height & ~1);
+		break;
+	case CANVAS_BOTTOMLEFT: //used by devstats
+		s = (float)glwidth / vid.conwidth; //use console scale
+		glOrtho_fp(0, 320, 200, 0, -99999, 99999);
+		glViewport_fp(glx, gly, 320 * s, 200 * s);
+		break;
+	case CANVAS_BOTTOMRIGHT: //used by fps/clock
+		s = (float)glwidth / vid.conwidth; //use console scale
+		glOrtho_fp(0, 320, 200, 0, -99999, 99999);
+		glViewport_fp(glx + glwidth - 320 * s, gly, 320 * s, 200 * s);
+		break;
+	case CANVAS_TOPRIGHT: //used by disc
+		s = 1;
+		glOrtho_fp(0, 320, 200, 0, -99999, 99999);
+		glViewport_fp(glx + glwidth - 320 * s, gly + glheight - 200 * s, 320 * s, 200 * s);
+		break;
+	default:
+		Sys_Error("GL_SetCanvas: bad canvas type");
+	}
+
+	glMatrixMode_fp(GL_MODELVIEW);
+	glLoadIdentity_fp();
+}
+
+/*
+================
 GL_Set2D
 
 Setup as if the screen was 320*200
 ================
 */
+/*
 void GL_Set2D (void)
 {
 	glViewport_fp (glx, gly, glwidth, glheight);
@@ -1416,6 +1580,24 @@ void GL_Set2D (void)
 
 	glColor4f_fp (1,1,1,1);
 }
+*/
+/*
+================
+GL_Set2D -- johnfitz -- rewritten
+================
+*/
+void GL_Set2D(void)
+{
+	currentcanvas = CANVAS_INVALID;
+	GL_SetCanvas(CANVAS_DEFAULT);
+
+	glDisable_fp(GL_DEPTH_TEST);
+	glDisable_fp(GL_CULL_FACE);
+	glDisable_fp(GL_BLEND);
+	glEnable_fp(GL_ALPHA_TEST);
+	glColor4f_fp(1, 1, 1, 1);
+}
+
 
 //====================================================================
 

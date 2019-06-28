@@ -92,6 +92,8 @@ void Draw_SmallString (int x, int y, const char *str);
 void Draw_RedString (int x, int y, const char *str);
 void Draw_BigCharacter (int x, int y, int num);
 
+void GL_SetCanvas(canvastype newcanvas); //johnfitz
+
 /* game/engine name to draw on the console */
 #define GAME_MOD_NAME		ENGINE_NAME
 #define ENGINE_WATERMARK	GAME_MOD_NAME " " STRINGIFY(ENGINE_VERSION) " (" PLATFORM_STRING ")"
