@@ -117,7 +117,7 @@ int		gl_filter_idx = 4; /* Bilinear */
 gltexture_t	gltextures[MAX_GLTEXTURES];
 int			numgltextures;
 
-static GLuint GL_LoadPixmap (const char *name, const char *data);
+static gltexture_t* GL_LoadPixmap (const char *name, const char *data);
 static void GL_Upload32 (unsigned int *data, gltexture_t *glt);
 static void GL_Upload8 (byte *data, gltexture_t *glt);
 
@@ -2045,7 +2045,7 @@ crosshairs or pointers. The data string is in a format similar to an X11
 pixmap.  '0'-'7' are brightness levels, any other character is considered
 transparent. Remember, NO error checking is performed on the input string.
 */
-static GLuint GL_LoadPixmap (const char *name, const char *data)
+static gltexture_t* GL_LoadPixmap (const char *name, const char *data)
 {
 	int		i;
 	unsigned char	pixels[32*32][4];
@@ -2079,7 +2079,7 @@ static GLuint GL_LoadPixmap (const char *name, const char *data)
 GL_LoadPicTexture
 ================
 */
-GLuint GL_LoadPicTexture (qpic_t *pic)
+gltexture_t* GL_LoadPicTexture (qpic_t *pic)
 {
 	//return GL_LoadTexture ("", pic->data, pic->width, pic->height, TEX_ALPHA|TEX_LINEAR);
 	return TexMgr_LoadImage(NULL, "", pic->width, pic->height, SRC_INDEXED, pic->data,

@@ -50,6 +50,7 @@ static GLuint useAlphaTestLoc;
 extern GLuint gl_bmodel_vbo;
 
 static int	allocated[MAX_LIGHTMAPS][BLOCK_WIDTH];
+int			last_lightmap_allocated; //ericw -- optimization: remember the index of the last lightmap AllocBlock stored a surf in
 
 typedef struct glRect_s {
 	unsigned char l, t, w, h;
@@ -639,7 +640,7 @@ void R_RenderBrushPoly (entity_t *e, msurface_t *fa, qboolean override)
 	}
 
 	t = R_TextureAnimation (e, fa->texinfo->texture);
-	GL_Bind (t->gl_texturenum);
+	GL_Bind (t->gltexture);
 
 	if (fa->flags & SURF_DRAWTURB)
 	{	// warp texture, no lightmaps
@@ -793,7 +794,7 @@ void R_RenderBrushPolyMTex (entity_t *e, msurface_t *fa, qboolean override)
 
 	glActiveTextureARB_fp(GL_TEXTURE0_ARB);
 	t = R_TextureAnimation (e, fa->texinfo->texture);
-	GL_Bind (t->gl_texturenum);
+	GL_Bind (t->gltexture);
 
 	if (fa->flags & SURF_DRAWTURB)
 	{
@@ -2448,6 +2449,7 @@ Builds the lightmap texture
 with all the surfaces from all brush models
 ==================
 */
+/*
 void GL_BuildLightmaps (void)
 {
 	int		i, j;
@@ -2508,4 +2510,147 @@ void GL_BuildLightmaps (void)
 
 	if (gl_mtexable)
 		glActiveTextureARB_fp (GL_TEXTURE0_ARB);
+}
+*/
+void GL_BuildLightmaps(void)
+{
+	char	name[16];
+	byte	*data;
+	int		i, j;
+	qmodel_t	*m;
+
+	memset(allocated, 0, sizeof(allocated));
+	last_lightmap_allocated = 0;
+
+	r_framecount = 1; // no dlightcache
+
+	//johnfitz -- null out array (the gltexture objects themselves were already freed by Mod_ClearAll)
+	for (i = 0; i < MAX_LIGHTMAPS; i++)
+		lightmap_textures[i] = NULL;
+	//johnfitz
+
+	gl_lightmap_format = GL_RGBA;//FIXME: hardcoded for now!
+
+	switch (gl_lightmap_format)
+	{
+	case GL_RGBA:
+		lightmap_bytes = 4;
+		break;
+	case GL_BGRA:
+		lightmap_bytes = 4;
+		break;
+	default:
+		Sys_Error("GL_BuildLightmaps: bad lightmap format");
+	}
+
+	for (j = 1; j < MAX_MODELS; j++)
+	{
+		m = cl.model_precache[j];
+		if (!m)
+			break;
+		if (m->name[0] == '*')
+			continue;
+		r_pcurrentvertbase = m->vertexes;
+		currentmodel = m;
+		for (i = 0; i < m->numsurfaces; i++)
+		{
+			//johnfitz -- rewritten to use SURF_DRAWTILED instead of the sky/water flags
+			if (m->surfaces[i].flags & SURF_DRAWTILED)
+				continue;
+			GL_CreateSurfaceLightmap(m->surfaces + i);
+			BuildSurfaceDisplayList(m->surfaces + i);
+			//johnfitz
+		}
+	}
+
+	//
+	// upload all lightmaps that were filled
+	//
+	for (i = 0; i < MAX_LIGHTMAPS; i++)
+	{
+		if (!allocated[i][0])
+			break;		// no more used
+		lightmap_modified[i] = false;
+		lightmap_rectchange[i].l = BLOCK_WIDTH;
+		lightmap_rectchange[i].t = BLOCK_HEIGHT;
+		lightmap_rectchange[i].w = 0;
+		lightmap_rectchange[i].h = 0;
+
+		//johnfitz -- use texture manager
+		sprintf(name, "lightmap%03i", i);
+		data = lightmaps + i * BLOCK_WIDTH*BLOCK_HEIGHT*lightmap_bytes;
+		lightmap_textures[i] = TexMgr_LoadImage(cl.worldmodel, name, BLOCK_WIDTH, BLOCK_HEIGHT,
+			SRC_LIGHTMAP, data, "", (src_offset_t)data, TEXPREF_LINEAR | TEXPREF_NOPICMIP);
+		//johnfitz
+	}
+
+	//johnfitz -- warn about exceeding old limits
+	//if (i >= 64)
+		//Con_DWarning("%i lightmaps exceeds standard limit of 64 (max = %d).\n", i, MAX_LIGHTMAPS);
+	//johnfitz
+}
+
+/*
+==================
+GL_BuildBModelVertexBuffer
+
+Deletes gl_bmodel_vbo if it already exists, then rebuilds it with all
+surfaces from world + all brush models
+==================
+*/
+void GL_BuildBModelVertexBuffer(void)
+{
+	unsigned int	numverts, varray_bytes, varray_index;
+	int		i, j;
+	qmodel_t	*m;
+	float		*varray;
+
+	if (!(gl_vbo_able && gl_mtexable && gl_max_texture_units >= 3))
+		return;
+
+	// ask GL for a name for our VBO
+	GL_DeleteBuffersFunc(1, &gl_bmodel_vbo);
+	GL_GenBuffersFunc(1, &gl_bmodel_vbo);
+
+	// count all verts in all models
+	numverts = 0;
+	for (j = 1; j < MAX_MODELS; j++)
+	{
+		m = cl.model_precache[j];
+		if (!m || m->name[0] == '*' || m->type != mod_brush)
+			continue;
+
+		for (i = 0; i < m->numsurfaces; i++)
+		{
+			numverts += m->surfaces[i].numedges;
+		}
+	}
+
+	// build vertex array
+	varray_bytes = VERTEXSIZE * sizeof(float) * numverts;
+	varray = (float *)malloc(varray_bytes);
+	varray_index = 0;
+
+	for (j = 1; j < MAX_MODELS; j++)
+	{
+		m = cl.model_precache[j];
+		if (!m || m->name[0] == '*' || m->type != mod_brush)
+			continue;
+
+		for (i = 0; i < m->numsurfaces; i++)
+		{
+			msurface_t *s = &m->surfaces[i];
+			s->vbo_firstvert = varray_index;
+			memcpy(&varray[VERTEXSIZE * varray_index], s->polys->verts, VERTEXSIZE * sizeof(float) * s->numedges);
+			varray_index += s->numedges;
+		}
+	}
+
+	// upload to GPU
+	GL_BindBufferFunc(GL_ARRAY_BUFFER, gl_bmodel_vbo);
+	GL_BufferDataFunc(GL_ARRAY_BUFFER, varray_bytes, varray, GL_STATIC_DRAW);
+	free(varray);
+
+	// invalidate the cached bindings
+	GL_ClearBufferBindings();
 }

@@ -714,7 +714,7 @@ void Mod_ReloadTextures (void)
 				else
 				{
 					//tx->gl_texturenum = GL_LoadTexture(tx->name, (byte *)(tx + 1), tx->width, tx->height, TEX_MIPMAP);
-					tx->gl_texturenum = TexMgr_LoadImage(NULL, tx->name, tx->width, tx->height, SRC_INDEXED, (byte *)(tx + 1),
+					tx->gltexture = TexMgr_LoadImage(NULL, tx->name, tx->width, tx->height, SRC_INDEXED, (byte *)(tx + 1),
 						WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP);
 
 				}
@@ -746,7 +746,7 @@ void Mod_ReloadTextures (void)
 	{
 		for (j = 0; j < cl.maxclients && j < cl.num_entities + 1; j++)
 		{
-			R_TranslatePlayerSkin(j);
+			R_TranslateNewPlayerSkin(j);
 		}
 	}
 }
@@ -2976,7 +2976,7 @@ static void *Mod_LoadSpriteFrame (void *pin, mspriteframe_t **ppframe, int frame
 
 	q_snprintf (name, sizeof(name), "%s_%i", loadmodel->name, framenum);
 	//pspriteframe->gl_texturenum = GL_LoadTexture (name, (byte *)(pinframe + 1), width, height, TEX_MIPMAP | TEX_ALPHA);
-	pspriteframe->gl_texturenum = TexMgr_LoadImage(NULL, name, width, height, SRC_INDEXED, (byte *)(pinframe + 1),
+	pspriteframe->gltexture = TexMgr_LoadImage(NULL, name, width, height, SRC_INDEXED, (byte *)(pinframe + 1),
 		WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP);
 
 

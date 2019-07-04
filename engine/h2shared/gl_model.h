@@ -82,7 +82,7 @@ typedef struct texture_s
 {
 	char		name[16];
 	unsigned int	width, height;
-	GLuint			gl_texturenum;
+	//GLuint			gl_texturenum;
 	struct gltexture_s	*gltexture; //johnfitz -- pointer to gltexture
 	struct gltexture_s	*fullbright; //johnfitz -- fullbright mask texture
 	struct gltexture_s	*warpimage; //johnfitz -- for water animation
@@ -248,7 +248,7 @@ typedef struct mspriteframe_s
 	short		width;
 	short		height;
 	float		up, down, left, right;
-	GLuint		gl_texturenum;
+	struct gltexture_s	*gltexture;
 } mspriteframe_t;
 
 typedef struct

@@ -56,9 +56,11 @@ qboolean	r_cache_thrash;			// compatability
 
 //GLuint			currenttexture = GL_UNUSED_TEXTURE;	// to avoid unnecessary texture sets
 
-GLuint			particletexture;	// little dot for particles
-GLuint			playertextures[MAX_CLIENTS];	// up to MAX_CLIENTS color translated skins
-GLuint			gl_extra_textures[MAX_EXTRA_TEXTURES];   // generic textures for models
+//GLuint			particletexture;	// little dot for particles
+extern gltexture_t *particletexture, *particletexture1, *particletexture2, *particletexture3, *particletexture4; //johnfitz
+//GLuint			playertextures[MAX_CLIENTS];	// up to MAX_CLIENTS color translated skins
+gltexture_t *playertextures[MAX_CLIENTS]; //johnfitz -- changed to an array of pointers
+gltexture_t *gl_extra_textures[MAX_EXTRA_TEXTURES];   // generic textures for models
 
 int			mirrortexturenum;	// quake texturenum, not gltexturenum
 qboolean	mirror;
@@ -537,7 +539,7 @@ static void R_DrawSpriteModel (entity_t *e)
 		glColor3f_fp (1,1,1);
 	}
 
-	GL_Bind(frame->gl_texturenum);
+	GL_Bind(frame->gltexture);
 
 	glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 	glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);

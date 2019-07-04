@@ -194,10 +194,12 @@ extern float	map_wateralpha, map_lavaalpha, map_telealpha, map_slimealpha; //eri
 /* gl texture objects */
 //extern	GLuint		currenttexture;
 static GLuint	currenttexture[3] = { GL_UNUSED_TEXTURE, GL_UNUSED_TEXTURE, GL_UNUSED_TEXTURE }; // to avoid unnecessary texture sets
-extern	GLuint		particletexture;
+//extern	GLuint		particletexture;
+static gltexture_t *particletexture, *particletexture1, *particletexture2, *particletexture3, *particletexture4; //johnfitz
 extern gltexture_t *lightmap_textures[MAX_LIGHTMAPS]; //johnfitz -- changed to an array
-extern	GLuint		playertextures[MAX_CLIENTS];
-extern	GLuint		gl_extra_textures[MAX_EXTRA_TEXTURES];	// generic textures for models
+//static	GLuint		playertextures[MAX_CLIENTS];
+static gltexture_t *playertextures[MAX_CLIENTS]; //johnfitz -- changed to an array of pointers
+extern	gltexture_t		*gl_extra_textures[MAX_EXTRA_TEXTURES];	// generic textures for models
 
 //ericw -- VBO
 extern PFNGLBINDBUFFERARBPROC  GL_BindBufferFunc;
@@ -422,7 +424,7 @@ void GL_Set2D (void);
 #define	TEX_HOLEY		(1 << 14)	/* Solid model with color 0			*/
 #define	TEX_SPECIAL_TRANS	(1 << 15)	/* Translucency through the particle table	*/
 
-GLuint GL_LoadPicTexture (qpic_t *pic);
+gltexture_t* GL_LoadPicTexture (qpic_t *pic);
 void D_ClearOpenGLTextures (int last_tex);
 
 qboolean R_CullBox (vec3_t mins, vec3_t maxs);
@@ -470,6 +472,7 @@ void R_InitNetgraphTexture (void);
 
 void R_ReadPointFile_f (void);
 void R_TranslatePlayerSkin (int playernum);
+void R_TranslateNewPlayerSkin (int playernum);
 qboolean R_CullModelForEntity(entity_t *e);
 float GL_WaterAlphaForSurface(msurface_t *fa);
 
