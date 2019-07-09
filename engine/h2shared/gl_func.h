@@ -49,6 +49,7 @@ GL_FUNCTION(void, glTexEnvi, (GLenum, GLenum, GLuint))
 GL_FUNCTION(void, glScalef, (GLfloat, GLfloat, GLfloat))
 GL_FUNCTION(void, glTexImage2D, (GLenum, GLint, GLint, GLsizei, GLsizei, GLint, GLenum, GLenum, const GLvoid*))
 GL_FUNCTION(void, glTexSubImage2D, (GLenum, GLint, GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, const GLvoid *))
+GL_FUNCTION(void, glCopyTexSubImage2D, (GLenum, GLint, GLint, GLint, GLint, GLint, GLsizei, GLsizei));
 GL_FUNCTION(void, glGetTexImage, (GLenum target, GLint level, GLenum format, GLenum type, GLvoid *pixels));
 GL_FUNCTION(void, glDrawElements, (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices));
 

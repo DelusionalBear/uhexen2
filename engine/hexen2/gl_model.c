@@ -39,7 +39,9 @@ static void Mod_Print (void);
 
 static cvar_t	external_ents = {"external_ents", "1", CVAR_ARCHIVE};
 
-static byte	mod_novis[MAX_MAP_LEAFS/8];
+static int	mod_novis_capacity;
+//static byte	mod_novis[MAX_MAP_LEAFS/8];
+static byte	*mod_novis;
 
 // 650 should be enough with model handle recycling, but.. (Pa3PyX)
 #define	MAX_MOD_KNOWN	4096	//spike: boosted for crazy bsp2 maps
@@ -75,7 +77,7 @@ void Mod_Init (void)
 	r_notexture_mip2->height = r_notexture_mip2->width = 32;
 	//johnfitz
 
-	memset (mod_novis, 0xff, sizeof(mod_novis));
+//	memset (mod_novis, 0xff, sizeof(mod_novis));
 }
 
 /*
@@ -189,6 +191,23 @@ byte *Mod_LeafPVS (mleaf_t *leaf, qmodel_t *model)
 	if (leaf == model->leafs)
 		return mod_novis;
 	return Mod_DecompressVis (leaf->compressed_vis, model);
+}
+
+byte *Mod_NoVisPVS(qmodel_t *model)
+{
+	int pvsbytes;
+
+	pvsbytes = (model->numleafs + 7) >> 3;
+	if (mod_novis == NULL || pvsbytes > mod_novis_capacity)
+	{
+		mod_novis_capacity = pvsbytes;
+		mod_novis = (byte *)realloc(mod_novis, mod_novis_capacity);
+		if (!mod_novis)
+			Sys_Error("Mod_NoVisPVS: realloc() failed on %d bytes", mod_novis_capacity);
+
+		memset(mod_novis, 0xff, mod_novis_capacity);
+	}
+	return mod_novis;
 }
 
 /*

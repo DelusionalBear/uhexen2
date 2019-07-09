@@ -90,5 +90,7 @@ static	cvar_t		scr_scale;
 static	cvar_t		scr_crosshairscale;
 //johnfitz
 
+extern int scr_tileclear_updates; //johnfitz
+
 #endif	/* __HX2_SCREEN_H */
 

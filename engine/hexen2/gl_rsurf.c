@@ -63,6 +63,8 @@ glpoly_t	*lightmap_polys[MAX_LIGHTMAPS];
 qboolean	lightmap_modified[MAX_LIGHTMAPS];
 glRect_t	lightmap_rectchange[MAX_LIGHTMAPS];
 
+int vis_changed; //if true, force pvs to be refreshed
+
 /*
 ===============
 R_UploadLightmap -- johnfitz -- uploads the modified lightmap to opengl if necessary
@@ -409,40 +411,37 @@ store:
 
 /*
 ===============
-R_TextureAnimation
+R_TextureAnimation -- johnfitz -- added "frame" param to eliminate use of "currententity" global
 
 Returns the proper texture for a given time and base texture
 ===============
 */
-static texture_t *R_TextureAnimation (entity_t *e, texture_t *base)
+texture_t *R_TextureAnimation(texture_t *base, int frame)
 {
-	int		reletive;
+	int		relative;
 	int		count;
 
-	if (e->frame)
-	{
+	if (frame)
 		if (base->alternate_anims)
 			base = base->alternate_anims;
-	}
 
 	if (!base->anim_total)
 		return base;
 
-	reletive = (int)(cl.time*10) % base->anim_total;
+	relative = (int)(cl.time * 10) % base->anim_total;
 
 	count = 0;
-	while (base->anim_min > reletive || base->anim_max <= reletive)
+	while (base->anim_min > relative || base->anim_max <= relative)
 	{
 		base = base->anim_next;
 		if (!base)
-			Sys_Error ("%s: broken cycle", __thisfunc__);
+			Sys_Error("R_TextureAnimation: broken cycle");
 		if (++count > 100)
-			Sys_Error ("%s: infinite cycle", __thisfunc__);
+			Sys_Error("R_TextureAnimation: infinite cycle");
 	}
 
 	return base;
 }
-
 
 /*
 =============================================================
@@ -881,6 +880,132 @@ static void R_MirrorChain (msurface_t *s)
 	mirror_plane = s->plane;
 }
 
+/*
+================
+R_ClearTextureChains -- ericw
+
+clears texture chains for all textures used by the given model, and also
+clears the lightmap chains
+================
+*/
+void R_ClearTextureChains(qmodel_t *mod, texchain_t chain)
+{
+	int i;
+
+	// set all chains to null
+	for (i = 0; i < mod->numtextures; i++)
+		if (mod->textures[i])
+			mod->textures[i]->texturechains[chain] = NULL;
+
+	// clear lightmap chains
+	memset(lightmap_polys, 0, sizeof(lightmap_polys));
+}
+
+/*
+================
+R_ChainSurface -- ericw -- adds the given surface to its texture chain
+================
+*/
+void R_ChainSurface(msurface_t *surf, texchain_t chain)
+{
+	surf->texturechain = surf->texinfo->texture->texturechains[chain];
+	surf->texinfo->texture->texturechains[chain] = surf;
+}
+
+/*
+===============
+R_MarkSurfaces -- johnfitz -- mark surfaces based on PVS and rebuild texture chains
+===============
+*/
+void R_MarkSurfaces(void)
+{
+	byte		*vis;
+	mleaf_t		*leaf;
+	mnode_t		*node;
+	msurface_t	*surf, **mark;
+	int			i, j;
+	qboolean	nearwaterportal;
+
+	// clear lightmap chains
+	memset(lightmap_polys, 0, sizeof(lightmap_polys));
+
+	// check this leaf for water portals
+	// TODO: loop through all water surfs and use distance to leaf cullbox
+	nearwaterportal = false;
+	for (i = 0, mark = r_viewleaf->firstmarksurface; i < r_viewleaf->nummarksurfaces; i++, mark++)
+		if ((*mark)->flags & SURF_DRAWTURB)
+			nearwaterportal = true;
+
+	// choose vis data
+	if (r_novis.value || r_viewleaf->contents == CONTENTS_SOLID || r_viewleaf->contents == CONTENTS_SKY)
+		vis = Mod_NoVisPVS(cl.worldmodel);
+	else if (nearwaterportal)
+		vis = SV_FatPVS(r_origin, cl.worldmodel);
+	else
+		vis = Mod_LeafPVS(r_viewleaf, cl.worldmodel);
+
+	// if surface chains don't need regenerating, just add static entities and return
+	if (r_oldviewleaf == r_viewleaf && !vis_changed && !nearwaterportal)
+	{
+		leaf = &cl.worldmodel->leafs[1];
+		for (i = 0; i < cl.worldmodel->numleafs; i++, leaf++)
+			if (vis[i >> 3] & (1 << (i & 7)))
+				if (leaf->efrags)
+					R_StoreEfrags(&leaf->efrags);
+		return;
+	}
+
+	vis_changed = false;
+	r_visframecount++;
+	r_oldviewleaf = r_viewleaf;
+
+	// iterate through leaves, marking surfaces
+	leaf = &cl.worldmodel->leafs[1];
+	for (i = 0; i < cl.worldmodel->numleafs; i++, leaf++)
+	{
+		if (vis[i >> 3] & (1 << (i & 7)))
+		{
+			if (r_oldskyleaf.value || leaf->contents != CONTENTS_SKY)
+				for (j = 0, mark = leaf->firstmarksurface; j < leaf->nummarksurfaces; j++, mark++)
+					(*mark)->visframe = r_visframecount;
+
+			// add static models
+			if (leaf->efrags)
+				R_StoreEfrags(&leaf->efrags);
+		}
+	}
+
+	// set all chains to null
+	for (i = 0; i < cl.worldmodel->numtextures; i++)
+		if (cl.worldmodel->textures[i])
+			cl.worldmodel->textures[i]->texturechains[chain_world] = NULL;
+
+	// rebuild chains
+
+#if 1
+	//iterate through surfaces one node at a time to rebuild chains
+	//need to do it this way if we want to work with tyrann's skip removal tool
+	//becuase his tool doesn't actually remove the surfaces from the bsp surfaces lump
+	//nor does it remove references to them in each leaf's marksurfaces list
+	for (i = 0, node = cl.worldmodel->nodes; i < cl.worldmodel->numnodes; i++, node++)
+		for (j = 0, surf = &cl.worldmodel->surfaces[node->firstsurface]; j < node->numsurfaces; j++, surf++)
+			if (surf->visframe == r_visframecount)
+			{
+				R_ChainSurface(surf, chain_world);
+			}
+#else
+	//the old way
+	surf = &cl.worldmodel->surfaces[cl.worldmodel->firstmodelsurface];
+	for (i = 0; i < cl.worldmodel->nummodelsurfaces; i++, surf++)
+	{
+		if (surf->visframe == r_visframecount)
+		{
+			R_ChainSurface(surf, chain_world);
+		}
+	}
+#endif
+}
+
 
 /*
 ================
@@ -943,6 +1068,77 @@ void R_DrawWaterSurfaces (void)
 	glDepthMask_fp (1);
 }
 */
+
+/*
+================
+R_BackFaceCull -- johnfitz -- returns true if the surface is facing away from vieworg
+================
+*/
+qboolean R_BackFaceCull(msurface_t *surf)
+{
+	double dot;
+
+	switch (surf->plane->type)
+	{
+	case PLANE_X:
+		dot = r_refdef.vieworg[0] - surf->plane->dist;
+		break;
+	case PLANE_Y:
+		dot = r_refdef.vieworg[1] - surf->plane->dist;
+		break;
+	case PLANE_Z:
+		dot = r_refdef.vieworg[2] - surf->plane->dist;
+		break;
+	default:
+		dot = DotProduct(r_refdef.vieworg, surf->plane->normal) - surf->plane->dist;
+		break;
+	}
+
+	if ((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK))
+		return true;
+
+	return false;
+}
+
+
+/*
+================
+R_CullSurfaces -- johnfitz
+================
+*/
+void R_CullSurfaces(void)
+{
+	msurface_t *s;
+	int i;
+	texture_t *t;
+
+	if (!r_drawworld_cheatsafe)
+		return;
+
+	// ericw -- instead of testing (s->visframe == r_visframecount) on all world
+	// surfaces, use the chained surfaces, which is exactly the same set of sufaces
+	for (i = 0; i < cl.worldmodel->numtextures; i++)
+	{
+		t = cl.worldmodel->textures[i];
+
+		if (!t || !t->texturechains[chain_world])
+			continue;
+
+		for (s = t->texturechains[chain_world]; s; s = s->texturechain)
+		{
+			if (R_CullBox(s->mins, s->maxs) || R_BackFaceCull(s))
+				s->culled = true;
+			else
+			{
+				s->culled = false;
+				rs_brushpolys++; //count wpolys here
+				if (s->texinfo->texture->warpimage)
+					s->texinfo->texture->update_warp = true;
+			}
+		}
+	}
+}
+
 
 /*
 ================
@@ -1681,7 +1877,6 @@ void R_DrawTextureChains(qmodel_t *model, entity_t *ent, texchain_t chain)
 	R_DrawTextureChains_NoTexture(model, chain);
 
 	// OpenGL 2 fast path
-	/*
 	if (r_world_program != 0)
 	{
 		R_EndTransparentDrawing(entalpha);
@@ -1689,30 +1884,26 @@ void R_DrawTextureChains(qmodel_t *model, entity_t *ent, texchain_t chain)
 		R_DrawTextureChains_GLSL(model, ent, chain);
 		return;
 	}
-	*/
 
 	if (gl_overbright.value)
 	{
-		/*
 		if (gl_texture_env_combine && gl_mtexable) //case 1: texture and lightmap in one pass, overbright using texture combiners
 		{
 			GL_EnableMultitexture();
-			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
-			glTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
-			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_PREVIOUS_EXT);
-			glTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_TEXTURE);
-			glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 2.0f);
+			glTexEnvi_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE_EXT);
+			glTexEnvi_fp(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_MODULATE);
+			glTexEnvi_fp(GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_PREVIOUS_EXT);
+			glTexEnvi_fp(GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_TEXTURE);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 2.0f);
 			GL_DisableMultitexture();
 			R_DrawTextureChains_Multitexture(model, ent, chain);
 			GL_EnableMultitexture();
-			glTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 1.0f);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_RGB_SCALE_EXT, 1.0f);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 			GL_DisableMultitexture();
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 		}
-		else
-		*/
-		if (entalpha < 1) //case 2: can't do multipass if entity has alpha, so just draw the texture
+		else if (entalpha < 1) //case 2: can't do multipass if entity has alpha, so just draw the texture
 		{
 			R_DrawTextureChains_TextureOnly(model, ent, chain);
 		}
@@ -1906,9 +2097,11 @@ void R_DrawBrushModel (entity_t *e, qboolean Translucent)
 	qmodel_t	*clmodel;
 	qboolean	rotated;
 
+	/*
 	currenttexture[0] = GL_UNUSED_TEXTURE;
 	currenttexture[1] = GL_UNUSED_TEXTURE;
 	currenttexture[2] = GL_UNUSED_TEXTURE;
+	*/
 
 	clmodel = e->model;
 
@@ -1928,8 +2121,8 @@ void R_DrawBrushModel (entity_t *e, qboolean Translucent)
 		VectorAdd (e->origin, clmodel->maxs, maxs);
 	}
 
-	if (R_CullBox (mins, maxs))
-		return;
+	//if (R_CullBox (mins, maxs))
+	//	return;
 
 #if 0 /* causes side effects in 16 bpp. alternative down below */
 	/* Get rid of Z-fighting for textures by offsetting the
@@ -1999,6 +2192,7 @@ void R_DrawBrushModel (entity_t *e, qboolean Translucent)
 	//
 	// draw texture
 	//
+	/*
 	for (i = 0; i < clmodel->nummodelsurfaces; i++, psurf++)
 	{
 	// find which side of the node we are on
@@ -2021,6 +2215,23 @@ void R_DrawBrushModel (entity_t *e, qboolean Translucent)
 		//R_BlendLightmaps (Translucent);
 		R_DrawLightmapChains();
 	}
+	*/
+	R_ClearTextureChains(clmodel, chain_model);
+	for (i = 0; i < clmodel->nummodelsurfaces; i++, psurf++)
+	{
+		pplane = psurf->plane;
+		dot = DotProduct(modelorg, pplane->normal) - pplane->dist;
+		if (((psurf->flags & SURF_PLANEBACK) && (dot < -BACKFACE_EPSILON)) ||
+			(!(psurf->flags & SURF_PLANEBACK) && (dot > BACKFACE_EPSILON)))
+		{
+			R_ChainSurface(psurf, chain_model);
+			rs_brushpolys++;
+		}
+	}
+
+	R_DrawTextureChains(clmodel, e, chain_model);
+	R_DrawTextureChains_Water(clmodel, e, chain_model);
+
 	glPopMatrix_fp ();
 #if 0 /* see above... */
 	if (gl_zfix.integer && !gl_ztrick.integer)

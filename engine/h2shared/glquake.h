@@ -335,7 +335,9 @@ extern	unsigned char	*inverse_pal;
 /* global cvars */
 extern	cvar_t	r_norefresh;
 extern	cvar_t	r_drawentities;
+//extern	cvar_t	r_drawworld;
 extern	cvar_t	r_drawworld;
+extern	cvar_t	r_scale;
 extern	cvar_t	r_drawviewmodel;
 extern	cvar_t	r_speeds;
 extern	cvar_t	r_waterwarp;
@@ -433,12 +435,14 @@ void R_DrawBrushModel (entity_t *e, qboolean Translucent);
 void R_DrawWorld (void);
 void R_RenderBrushPoly (entity_t *e, msurface_t *fa, qboolean override);
 void R_RotateForEntity (entity_t *e);
+void R_MarkSurfaces(void); 
+void R_CullSurfaces(void);
 void DrawWaterPoly(glpoly_t *p);
 void DrawGLPoly(glpoly_t *p);
 void R_StoreEfrags (efrag_t **ppefrag);
 void GL_BindBuffer(GLenum target, GLuint buffer);
 void GL_ClearBufferBindings();
-
+void R_UpdateWarpTextures(void);
 
 #if defined(QUAKE2)
 void R_LoadSkys (void);

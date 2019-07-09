@@ -129,13 +129,13 @@ static void SCR_ScreenShot_f (void);
 static const char	*plaquemessage = "";	// pointer to current plaque message
 
 static void Plaque_Draw (const char *message, qboolean AlwaysDraw);
-int	scr_tileclear_updates = 0; //johnfitz
 #if !defined(H2W)
 /* procedures for the mission pack intro messages and objectives */
 static void Info_Plaque_Draw (const char *message);
 static void Bottom_Plaque_Draw (const char *message);
 #endif	/* H2W */
 
+int	scr_tileclear_updates = 0; //johnfitz
 
 /*
 ===============================================================================
@@ -347,59 +347,50 @@ Internal use only
 */
 static void SCR_CalcRefdef (void)
 {
-	float	size;
-	int	h;
+	float		size, scale; //johnfitz -- scale
 
-	scr_fullupdate = 0;		// force a background redraw
+// force the status bar to redraw
+	Sbar_Changed();
+
+	scr_tileclear_updates = 0; //johnfitz
 
 // bound viewsize
-	if (scr_viewsize.integer < 30)
-		Cvar_SetQuick (&scr_viewsize, "30");
-	else if (scr_viewsize.integer > 130)
-		Cvar_SetQuick (&scr_viewsize, "130");
+	if (scr_viewsize.value < 30)
+		Cvar_SetQuick(&scr_viewsize, "30");
+	if (scr_viewsize.value > 120)
+		Cvar_SetQuick(&scr_viewsize, "120");
 
-// bound field of view
-	if (scr_fov.integer < 10)
-		Cvar_SetQuick (&scr_fov, "10");
-	else if (scr_fov.integer > 170)
-		Cvar_SetQuick (&scr_fov, "170");
+	// bound fov
+	if (scr_fov.value < 10)
+		Cvar_SetQuick(&scr_fov, "10");
+	if (scr_fov.value > 170)
+		Cvar_SetQuick(&scr_fov, "170");
 
 	vid.recalc_refdef = 0;
 
-// force the status bar to redraw
-	SB_ViewSizeChanged ();
-	Sbar_Changed();
+	//johnfitz -- rewrote this section
+	size = scr_viewsize.value;
+	scale = CLAMP(1.0, scr_sbarscale.value, (float)glwidth / 320.0);
 
-	if (scr_viewsize.integer >= 110)
-		sb_lines = 0;		// no status bar
-	else
-		sb_lines = 36;	// FIXME: why not 46, i.e. BAR_TOP_HEIGHT?
-
-	size = scr_viewsize.integer > 100 ? 100.0 : scr_viewsize.integer;
-	if (cl.intermission)
-	{
-		size = 100.0;		// intermission is always full screen
+	if (size >= 120 || cl.intermission || scr_sbaralpha.value < 1) //johnfitz -- scr_sbaralpha.value
 		sb_lines = 0;
-	}
-	size /= 100.0;
+	else if (size >= 110)
+		sb_lines = 24 * scale;
+	else
+		sb_lines = 48 * scale;
 
-	h = vid.height - sb_lines;
-	r_refdef.vrect.width = vid.width * size;
-	if (r_refdef.vrect.width < 96)
-	{
-		size = 96.0 / vid.width;
-		r_refdef.vrect.width = 96;	// min for icons
-	}
+	size = q_min(scr_viewsize.value, 100) / 100;
+	//johnfitz
 
-	r_refdef.vrect.height = vid.height * size;
-	if (r_refdef.vrect.height > vid.height - sb_lines)
-		r_refdef.vrect.height = vid.height - sb_lines;
+	//johnfitz -- rewrote this section
+	r_refdef.vrect.width = q_max(glwidth * size, 96); //no smaller than 96, for icons
+	r_refdef.vrect.height = q_min(glheight * size, glheight - sb_lines); //make room for sbar
+	r_refdef.vrect.x = (glwidth - r_refdef.vrect.width) / 2;
+	r_refdef.vrect.y = (glheight - sb_lines - r_refdef.vrect.height) / 2;
+	//johnfitz
 
-	r_refdef.vrect.x = (vid.width - r_refdef.vrect.width)/2;
-	r_refdef.vrect.y = (h - r_refdef.vrect.height)/2;
-
-	r_refdef.fov_x = AdaptFovx (scr_fov.value, r_refdef.vrect.width, r_refdef.vrect.height);
-	r_refdef.fov_y = CalcFovy (r_refdef.fov_x, r_refdef.vrect.width, r_refdef.vrect.height);
+	r_refdef.fov_x = AdaptFovx(scr_fov.value, vid.width, vid.height);
+	r_refdef.fov_y = CalcFovy(r_refdef.fov_x, r_refdef.vrect.width, r_refdef.vrect.height);
 
 	scr_vrect = r_refdef.vrect;
 }
@@ -763,51 +754,52 @@ SCR_SetUpToDrawConsole
 */
 static void SCR_SetUpToDrawConsole (void)
 {
-	Con_CheckResize ();
+	//johnfitz -- let's hack away the problem of slow console when host_timescale is <0
+	extern cvar_t host_timescale;
+	float timescale;
+	//johnfitz
 
-#if !defined(H2W)
+	Con_CheckResize();
+
 	if (scr_drawloading)
 		return;		// never a console with loading plaque
 
-	con_forcedup = !cl.worldmodel || cls.signon != SIGNONS;
-#else
-	con_forcedup = cls.state != ca_active;
-#endif	/* H2W */
-
 // decide on the height of the console
+	con_forcedup = !cl.worldmodel || cls.signon != SIGNONS;
+
 	if (con_forcedup)
 	{
-		scr_conlines = vid.height;	// full screen
+		scr_conlines = glheight; //full screen //johnfitz -- glheight instead of vid.height
 		scr_con_current = scr_conlines;
 	}
 	else if (Key_GetDest() == key_console)
-		scr_conlines = vid.height / 2;	// half screen
+		scr_conlines = glheight / 2; //half screen //johnfitz -- glheight instead of vid.height
 	else
-		scr_conlines = 0;		// none visible
+		scr_conlines = 0; //none visible
+
+	timescale = (host_timescale.value > 0) ? host_timescale.value : 1; //johnfitz -- timescale
 
 	if (scr_conlines < scr_con_current)
 	{
-		scr_con_current -= scr_conspeed.value * host_frametime;
+		// ericw -- (glheight/600.0) factor makes conspeed resolution independent, using 800x600 as a baseline
+		scr_con_current -= scr_conspeed.value*(glheight / 600.0)*host_frametime / timescale; //johnfitz -- timescale
 		if (scr_conlines > scr_con_current)
 			scr_con_current = scr_conlines;
 	}
 	else if (scr_conlines > scr_con_current)
 	{
-		scr_con_current += scr_conspeed.value * host_frametime;
+		// ericw -- (glheight/600.0)
+		scr_con_current += scr_conspeed.value*(glheight / 600.0)*host_frametime / timescale; //johnfitz -- timescale
 		if (scr_conlines < scr_con_current)
 			scr_con_current = scr_conlines;
 	}
 
 	if (clearconsole++ < vid.numpages)
-	{
 		Sbar_Changed();
+
+	if (!con_forcedup && scr_con_current)
+		scr_tileclear_updates = 0; //johnfitz
 	}
-	else if (clearnotify++ < vid.numpages)
-	{
-	}
-	else
-		con_notifylines = 0;
-}
 
 /*
 ==================

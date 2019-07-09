@@ -96,6 +96,8 @@ static GLuint useAlphaTestLoc;
 //
 vec3_t		vup, vpn, vright, r_origin;
 
+float r_fovx, r_fovy; //johnfitz -- rendering fov may be different becuase of r_waterwarp and r_stereo
+
 float		r_world_matrix[16];
 
 //
@@ -127,6 +129,10 @@ cvar_t	r_dynamic = {"r_dynamic", "1", CVAR_NONE};
 cvar_t	r_novis = {"r_novis", "0", CVAR_NONE};
 cvar_t	r_wholeframe = {"r_wholeframe", "1", CVAR_ARCHIVE};
 cvar_t	r_texture_external = {"r_texture_external", "0", CVAR_ARCHIVE};
+cvar_t	r_drawflat = { "r_drawflat","0",CVAR_NONE };
+cvar_t	r_oldskyleaf = { "r_oldskyleaf", "0", CVAR_NONE };
+cvar_t	r_drawworld = { "r_drawworld", "1", CVAR_ARCHIVE };
+cvar_t	r_scale = { "r_scale", "1", CVAR_ARCHIVE };
 
 cvar_t	gl_clear = {"gl_clear", "0", CVAR_NONE};
 cvar_t	gl_cull = {"gl_cull", "1", CVAR_NONE};
@@ -189,19 +195,54 @@ static void *GLARB_GetNormalOffset(aliashdr_t *hdr, int pose)
 
 /*
 =================
-R_CullBox
+R_CullBox -- johnfitz -- replaced with new function from lordhavoc
 
-Returns true if the box is completely outside the frustom
+Returns true if the box is completely outside the frustum
 =================
 */
-qboolean R_CullBox (vec3_t mins, vec3_t maxs)
+qboolean R_CullBox(vec3_t emins, vec3_t emaxs)
 {
-	int		i;
-
+	int i;
+	mplane_t *p;
 	for (i = 0; i < 4; i++)
 	{
-		if (BoxOnPlaneSide (mins, maxs, &frustum[i]) == 2)
-			return true;
+		p = frustum + i;
+		switch (p->signbits)
+		{
+		default:
+		case 0:
+			if (p->normal[0] * emaxs[0] + p->normal[1] * emaxs[1] + p->normal[2] * emaxs[2] < p->dist)
+				return true;
+			break;
+		case 1:
+			if (p->normal[0] * emins[0] + p->normal[1] * emaxs[1] + p->normal[2] * emaxs[2] < p->dist)
+				return true;
+			break;
+		case 2:
+			if (p->normal[0] * emaxs[0] + p->normal[1] * emins[1] + p->normal[2] * emaxs[2] < p->dist)
+				return true;
+			break;
+		case 3:
+			if (p->normal[0] * emins[0] + p->normal[1] * emins[1] + p->normal[2] * emaxs[2] < p->dist)
+				return true;
+			break;
+		case 4:
+			if (p->normal[0] * emaxs[0] + p->normal[1] * emaxs[1] + p->normal[2] * emins[2] < p->dist)
+				return true;
+			break;
+		case 5:
+			if (p->normal[0] * emins[0] + p->normal[1] * emaxs[1] + p->normal[2] * emins[2] < p->dist)
+				return true;
+			break;
+		case 6:
+			if (p->normal[0] * emaxs[0] + p->normal[1] * emins[1] + p->normal[2] * emins[2] < p->dist)
+				return true;
+			break;
+		case 7:
+			if (p->normal[0] * emins[0] + p->normal[1] * emins[1] + p->normal[2] * emins[2] < p->dist)
+				return true;
+			break;
+		}
 	}
 	return false;
 }
@@ -1382,10 +1423,351 @@ static int			cl_numtranswateredicts;
 
 /*
 =============
+R_Clear
+=============
+*/
+static void R_Clear(void)
+{
+	if (r_mirroralpha.value != 1.0)
+	{
+		if (gl_clear.integer)
+			glClear_fp(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		else
+			glClear_fp(GL_DEPTH_BUFFER_BIT);
+		gldepthmin = 0;
+		gldepthmax = 0.5;
+		glDepthFunc_fp(GL_LEQUAL);
+	}
+	else if (gl_ztrick.integer)
+	{
+		static int trickframe;
+
+		if (gl_clear.integer)
+			glClear_fp(GL_COLOR_BUFFER_BIT);
+
+		trickframe++;
+		if (trickframe & 1)
+		{
+			gldepthmin = 0;
+			gldepthmax = 0.49999;
+			glDepthFunc_fp(GL_LEQUAL);
+		}
+		else
+		{
+			gldepthmin = 1;
+			gldepthmax = 0.5;
+			glDepthFunc_fp(GL_GEQUAL);
+		}
+	}
+	else
+	{
+		if (gl_clear.integer)
+			glClear_fp(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		else
+			glClear_fp(GL_DEPTH_BUFFER_BIT);
+		gldepthmin = 0;
+		gldepthmax = 1;
+		glDepthFunc_fp(GL_LEQUAL);
+	}
+
+	glDepthRange_fp(gldepthmin, gldepthmax);
+
+	if (have_stencil && r_shadows.integer)
+	{
+		glClearStencil_fp(1);
+		glClear_fp(GL_STENCIL_BUFFER_BIT);
+	}
+}
+
+
+/*
+===============
+TurnVector -- johnfitz
+
+turn forward towards side on the plane defined by forward and side
+if angle = 90, the result will be equal to side
+assumes side and forward are perpendicular, and normalized
+to turn away from side, use a negative angle
+===============
+*/
+#define DEG2RAD( a ) ( (a) * M_PI_DIV_180 )
+void TurnVector(vec3_t out, const vec3_t forward, const vec3_t side, float angle)
+{
+	float scale_forward, scale_side;
+
+	scale_forward = cos(DEG2RAD(angle));
+	scale_side = sin(DEG2RAD(angle));
+
+	out[0] = scale_forward * forward[0] + scale_side * side[0];
+	out[1] = scale_forward * forward[1] + scale_side * side[1];
+	out[2] = scale_forward * forward[2] + scale_side * side[2];
+}
+
+/*
+static void R_SetFrustum(void)
+{
+	int		i;
+
+	if (r_refdef.fov_x == 90)
+	{
+		// front side is visible
+		VectorAdd(vpn, vright, frustum[0].normal);
+		VectorSubtract(vpn, vright, frustum[1].normal);
+		VectorAdd(vpn, vup, frustum[2].normal);
+		VectorSubtract(vpn, vup, frustum[3].normal);
+	}
+	else
+	{
+		TurnVector(frustum[0].normal, vpn, vright, r_refdef.fov_x / 2 - 90); // left plane
+		TurnVector(frustum[1].normal, vpn, vright, 90 - r_refdef.fov_x / 2); // right plane
+		TurnVector(frustum[2].normal, vpn, vup, 90 - r_refdef.fov_y / 2); // bottom plane
+		TurnVector(frustum[3].normal, vpn, vup, r_refdef.fov_y / 2 - 90); // top plane
+	}
+
+	for (i = 0; i < 4; i++)
+	{
+		frustum[i].type = PLANE_ANYZ;
+		frustum[i].dist = DotProduct(r_origin, frustum[i].normal);
+		frustum[i].signbits = SignbitsForPlane(&frustum[i]);
+	}
+}
+*/
+/*
+===============
+R_SetFrustum -- johnfitz -- rewritten
+===============
+*/
+void R_SetFrustum(float fovx, float fovy)
+{
+	int		i;
+
+	//if (r_stereo.value)
+	//	fovx += 10; //silly hack so that polygons don't drop out becuase of stereo skew
+
+	TurnVector(frustum[0].normal, vpn, vright, fovx / 2 - 90); //left plane
+	TurnVector(frustum[1].normal, vpn, vright, 90 - fovx / 2); //right plane
+	TurnVector(frustum[2].normal, vpn, vup, 90 - fovy / 2); //bottom plane
+	TurnVector(frustum[3].normal, vpn, vup, fovy / 2 - 90); //top plane
+
+	for (i = 0; i < 4; i++)
+	{
+		frustum[i].type = PLANE_ANYZ;
+		frustum[i].dist = DotProduct(r_origin, frustum[i].normal); //FIXME: shouldn't this always be zero?
+		frustum[i].signbits = SignbitsForPlane(&frustum[i]);
+	}
+}
+
+
+#define NEARCLIP	4
+#define FARCLIP		4096
+void GL_SetFrustum(GLdouble fovx, GLdouble fovy)
+{
+	GLdouble	xmax, ymax;
+	xmax = NEARCLIP * tan(fovx * M_PI / 360.0);
+	ymax = NEARCLIP * tan(fovy * M_PI / 360.0);
+	glFrustum_fp(-xmax, xmax, -ymax, ymax, NEARCLIP, FARCLIP);
+}
+
+/*
+=============
+R_SetupGL
+=============
+*/
+/*
+static void R_SetupGL(void)
+{
+	int	x, x2, y2, y, w, h;
+
+	//
+	// set up viewpoint
+	//
+	glMatrixMode_fp(GL_PROJECTION);
+	glLoadIdentity_fp();
+
+	x = r_refdef.vrect.x * glwidth / vid.width;
+	x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * glwidth / vid.width;
+	y = (vid.height - r_refdef.vrect.y) * glheight / vid.height;
+	y2 = (vid.height - (r_refdef.vrect.y + r_refdef.vrect.height)) * glheight / vid.height;
+
+	// fudge around because of frac screen scale
+	if (x > 0)
+		x--;
+	if (x2 < glwidth)
+		x2++;
+	if (y2 < 0)
+		y2--;
+	if (y < glheight)
+		y++;
+
+	w = x2 - x;
+	h = y - y2;
+
+	glViewport_fp(glx + x, gly + y2, w, h);
+	//GL_SetFrustum (r_refdef.fov_x, r_refdef.fov_y);
+	//r_fovx = r_refdef.fov_x;
+	//r_fovy = r_refdef.fov_y;
+	GL_SetFrustum(r_fovx, r_fovy); //johnfitz -- use r_fov* vars
+
+
+	if (mirror)
+	{
+		if (mirror_plane->normal[2])
+			glScalef_fp(1, -1, 1);
+		else
+			glScalef_fp(-1, 1, 1);
+		glCullFace_fp(GL_BACK);
+	}
+	else
+		glCullFace_fp(GL_FRONT);
+
+	glMatrixMode_fp(GL_MODELVIEW);
+	glLoadIdentity_fp();
+
+	glRotatef_fp(-90, 1, 0, 0);	// put Z going up
+	glRotatef_fp(90, 0, 0, 1);	// put Z going up
+	glRotatef_fp(-r_refdef.viewangles[2], 1, 0, 0);
+	glRotatef_fp(-r_refdef.viewangles[0], 0, 1, 0);
+	glRotatef_fp(-r_refdef.viewangles[1], 0, 0, 1);
+	glTranslatef_fp(-r_refdef.vieworg[0], -r_refdef.vieworg[1], -r_refdef.vieworg[2]);
+
+	glGetFloatv_fp(GL_MODELVIEW_MATRIX, r_world_matrix);
+
+	//
+	// set drawing parms
+	//
+	if (gl_cull.integer)
+		glEnable_fp(GL_CULL_FACE);
+	else
+		glDisable_fp(GL_CULL_FACE);
+
+	glDisable_fp(GL_BLEND);
+	glDisable_fp(GL_ALPHA_TEST);
+	glEnable_fp(GL_DEPTH_TEST);
+}
+*/
+void R_SetupGL(void)
+{
+	int scale;
+
+	//johnfitz -- rewrote this section
+	glMatrixMode_fp(GL_PROJECTION);
+	glLoadIdentity_fp();
+	scale = CLAMP(1, (int)r_scale.value, 4); // ericw -- see R_ScaleView
+	glViewport_fp(glx + r_refdef.vrect.x,
+		gly + glheight - r_refdef.vrect.y - r_refdef.vrect.height,
+		r_refdef.vrect.width / scale,
+		r_refdef.vrect.height / scale);
+	//johnfitz
+
+	GL_SetFrustum(r_fovx, r_fovy); //johnfitz -- use r_fov* vars
+
+//	glCullFace(GL_BACK); //johnfitz -- glquake used CCW with backwards culling -- let's do it right
+
+	glMatrixMode_fp(GL_MODELVIEW);
+	glLoadIdentity_fp();
+
+	glRotatef_fp(-90, 1, 0, 0);	    // put Z going up
+	glRotatef_fp(90, 0, 0, 1);	    // put Z going up
+	glRotatef_fp(-r_refdef.viewangles[2], 1, 0, 0);
+	glRotatef_fp(-r_refdef.viewangles[0], 0, 1, 0);
+	glRotatef_fp(-r_refdef.viewangles[1], 0, 0, 1);
+	glTranslatef_fp(-r_refdef.vieworg[0], -r_refdef.vieworg[1], -r_refdef.vieworg[2]);
+
+	//
+	// set drawing parms
+	//
+	if (gl_cull.value)
+		glEnable_fp(GL_CULL_FACE);
+	else
+		glDisable_fp(GL_CULL_FACE);
+
+	glDisable_fp(GL_BLEND);
+	glDisable_fp(GL_ALPHA_TEST);
+	glEnable_fp(GL_DEPTH_TEST);
+}
+
+
+/*
+===============
+R_SetupScene -- johnfitz -- this is the stuff that needs to be done once per eye in stereo mode
+===============
+*/
+void R_SetupScene(void)
+{
+	R_PushDlights();
+	R_AnimateLight();
+	r_framecount++;
+	R_SetupGL();
+}
+
+/*
+===============
+R_SetupView -- johnfitz -- this is the stuff that needs to be done once per frame, even in stereo mode
+===============
+*/
+void R_SetupView(void)
+{
+	Fog_SetupFrame(); //johnfitz
+
+// build the transformation matrix for the given view angles
+	VectorCopy(r_refdef.vieworg, r_origin);
+	AngleVectors(r_refdef.viewangles, vpn, vright, vup);
+
+	// current viewleaf
+	r_oldviewleaf = r_viewleaf;
+	r_viewleaf = Mod_PointInLeaf(r_origin, cl.worldmodel);
+
+	V_SetContentsColor(r_viewleaf->contents);
+	V_CalcBlend();
+
+	r_cache_thrash = false;
+
+	//johnfitz -- calculate r_fovx and r_fovy here
+	r_fovx = r_refdef.fov_x;
+	r_fovy = r_refdef.fov_y;
+	if (r_waterwarp.value)
+	{
+		int contents = Mod_PointInLeaf(r_origin, cl.worldmodel)->contents;
+		if (contents == CONTENTS_WATER || contents == CONTENTS_SLIME || contents == CONTENTS_LAVA)
+		{
+			//variance is a percentage of width, where width = 2 * tan(fov / 2) otherwise the effect is too dramatic at high FOV and too subtle at low FOV.  what a mess!
+			r_fovx = atan(tan(DEG2RAD(r_refdef.fov_x) / 2) * (0.97 + sin(cl.time * 1.5) * 0.03)) * 2 / M_PI_DIV_180;
+			r_fovy = atan(tan(DEG2RAD(r_refdef.fov_y) / 2) * (1.03 - sin(cl.time * 1.5) * 0.03)) * 2 / M_PI_DIV_180;
+		}
+	}
+	//johnfitz
+
+	R_SetFrustum(r_fovx, r_fovy); //johnfitz -- use r_fov* vars
+
+	R_MarkSurfaces(); //johnfitz -- create texture chains from PVS
+
+	R_CullSurfaces(); //johnfitz -- do after R_SetFrustum and R_MarkSurfaces
+
+	R_UpdateWarpTextures(); //johnfitz -- do this before R_Clear
+
+	R_Clear();
+
+	//johnfitz -- cheat-protect some draw modes
+	r_drawflat_cheatsafe = r_fullbright_cheatsafe = r_lightmap_cheatsafe = false;
+	r_drawworld_cheatsafe = true;
+	if (cl.maxclients == 1)
+	{
+		if (!r_drawworld.value) r_drawworld_cheatsafe = false;
+
+		if (r_drawflat.value) r_drawflat_cheatsafe = true;
+		else if (r_fullbright.value || !cl.worldmodel->lightdata) r_fullbright_cheatsafe = true;
+		else if (r_lightmap.value) r_lightmap_cheatsafe = true;
+	}
+	//johnfitz
+}
+
+
+/*
+=============
 R_DrawEntitiesOnList
 =============
 */
-static void R_DrawEntitiesOnList (void)
+void R_DrawEntitiesOnList (void)
 {
 	int			i;
 	qboolean	item_trans;
@@ -1940,57 +2322,6 @@ static int SignbitsForPlane (mplane_t *out)
 
 /*
 ===============
-TurnVector -- johnfitz
-
-turn forward towards side on the plane defined by forward and side
-if angle = 90, the result will be equal to side
-assumes side and forward are perpendicular, and normalized
-to turn away from side, use a negative angle
-===============
-*/
-static void TurnVector (vec3_t out, const vec3_t forward, const vec3_t side, float angle)
-{
-	float	scale_forward, scale_side;
-
-	scale_forward = cos(angle * M_PI / 180.0);
-	scale_side = sin(angle * M_PI / 180.0);
-
-	out[0] = scale_forward*forward[0] + scale_side*side[0];
-	out[1] = scale_forward*forward[1] + scale_side*side[1];
-	out[2] = scale_forward*forward[2] + scale_side*side[2];
-}
-
-static void R_SetFrustum (void)
-{
-	int		i;
-
-	if (r_refdef.fov_x == 90)
-	{
-		// front side is visible
-		VectorAdd (vpn, vright, frustum[0].normal);
-		VectorSubtract (vpn, vright, frustum[1].normal);
-		VectorAdd (vpn, vup, frustum[2].normal);
-		VectorSubtract (vpn, vup, frustum[3].normal);
-	}
-	else
-	{
-		TurnVector(frustum[0].normal, vpn, vright, r_refdef.fov_x/2 - 90); // left plane
-		TurnVector(frustum[1].normal, vpn, vright, 90 - r_refdef.fov_x/2); // right plane
-		TurnVector(frustum[2].normal, vpn, vup,    90 - r_refdef.fov_y/2); // bottom plane
-		TurnVector(frustum[3].normal, vpn, vup,    r_refdef.fov_y/2 - 90); // top plane
-	}
-
-	for (i = 0; i < 4; i++)
-	{
-		frustum[i].type = PLANE_ANYZ;
-		frustum[i].dist = DotProduct (r_origin, frustum[i].normal);
-		frustum[i].signbits = SignbitsForPlane (&frustum[i]);
-	}
-}
-
-
-/*
-===============
 R_SetupFrame
 ===============
 */
@@ -2023,88 +2354,6 @@ static void R_SetupFrame (void)
 }
 
 
-#define NEARCLIP	4
-#define FARCLIP		4096
-static void GL_SetFrustum (GLdouble fovx, GLdouble fovy)
-{
-	GLdouble	xmax, ymax;
-	xmax = NEARCLIP * tan(fovx * M_PI / 360.0);
-	ymax = NEARCLIP * tan(fovy * M_PI / 360.0);
-	glFrustum_fp (-xmax, xmax, -ymax, ymax, NEARCLIP, FARCLIP);
-}
-
-/*
-=============
-R_SetupGL
-=============
-*/
-static void R_SetupGL (void)
-{
-	int	x, x2, y2, y, w, h;
-
-	//
-	// set up viewpoint
-	//
-	glMatrixMode_fp(GL_PROJECTION);
-	glLoadIdentity_fp ();
-
-	x  =  r_refdef.vrect.x * glwidth/vid.width;
-	x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * glwidth/vid.width;
-	y  = (vid.height - r_refdef.vrect.y) * glheight/vid.height;
-	y2 = (vid.height - (r_refdef.vrect.y + r_refdef.vrect.height)) * glheight/vid.height;
-
-	// fudge around because of frac screen scale
-	if (x > 0)
-		x--;
-	if (x2 < glwidth)
-		x2++;
-	if (y2 < 0)
-		y2--;
-	if (y < glheight)
-		y++;
-
-	w = x2 - x;
-	h = y - y2;
-
-	glViewport_fp (glx + x, gly + y2, w, h);
-	GL_SetFrustum (r_refdef.fov_x, r_refdef.fov_y);
-
-	if (mirror)
-	{
-		if (mirror_plane->normal[2])
-			glScalef_fp (1, -1, 1);
-		else
-			glScalef_fp (-1, 1, 1);
-		glCullFace_fp(GL_BACK);
-	}
-	else
-		glCullFace_fp(GL_FRONT);
-
-	glMatrixMode_fp(GL_MODELVIEW);
-	glLoadIdentity_fp ();
-
-	glRotatef_fp (-90,  1, 0, 0);	// put Z going up
-	glRotatef_fp (90,  0, 0, 1);	// put Z going up
-	glRotatef_fp (-r_refdef.viewangles[2],  1, 0, 0);
-	glRotatef_fp (-r_refdef.viewangles[0],  0, 1, 0);
-	glRotatef_fp (-r_refdef.viewangles[1],  0, 0, 1);
-	glTranslatef_fp (-r_refdef.vieworg[0],  -r_refdef.vieworg[1],  -r_refdef.vieworg[2]);
-
-	glGetFloatv_fp (GL_MODELVIEW_MATRIX, r_world_matrix);
-
-	//
-	// set drawing parms
-	//
-	if (gl_cull.integer)
-		glEnable_fp(GL_CULL_FACE);
-	else
-		glDisable_fp(GL_CULL_FACE);
-
-	glDisable_fp(GL_BLEND);
-	glDisable_fp(GL_ALPHA_TEST);
-	glEnable_fp(GL_DEPTH_TEST);
-}
-
 /*
 ================
 R_RenderScene
@@ -2114,13 +2363,19 @@ r_refdef must be set before the first call
 */
 static void R_RenderScene (void)
 {
-	R_SetupFrame ();
+	R_SetupScene(); //johnfitz -- this does everything that should be done once per call to RenderScene
 
-	R_SetFrustum ();
+	Fog_EnableGFog(); //johnfitz
 
-	R_SetupGL ();
+	Sky_DrawSky(); //johnfitz
 
-	R_MarkLeaves ();	// done here so we know if we're in water
+	//R_SetupFrame ();
+
+	//R_SetFrustum ();
+
+	//R_SetupGL ();
+
+	//R_MarkLeaves ();	// done here so we know if we're in water
 
 	R_DrawWorld ();		// adds static entities to the list
 
@@ -2131,67 +2386,10 @@ static void R_RenderScene (void)
 	R_DrawAllGlows();
 
 	R_RenderDlights ();
+
+	Fog_DisableGFog(); //johnfitz
+
 }
-
-
-/*
-=============
-R_Clear
-=============
-*/
-static void R_Clear (void)
-{
-	if (r_mirroralpha.value != 1.0)
-	{
-		if (gl_clear.integer)
-			glClear_fp (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		else
-			glClear_fp (GL_DEPTH_BUFFER_BIT);
-		gldepthmin = 0;
-		gldepthmax = 0.5;
-		glDepthFunc_fp (GL_LEQUAL);
-	}
-	else if (gl_ztrick.integer)
-	{
-		static int trickframe;
-
-		if (gl_clear.integer)
-			glClear_fp (GL_COLOR_BUFFER_BIT);
-
-		trickframe++;
-		if (trickframe & 1)
-		{
-			gldepthmin = 0;
-			gldepthmax = 0.49999;
-			glDepthFunc_fp (GL_LEQUAL);
-		}
-		else
-		{
-			gldepthmin = 1;
-			gldepthmax = 0.5;
-			glDepthFunc_fp (GL_GEQUAL);
-		}
-	}
-	else
-	{
-		if (gl_clear.integer)
-			glClear_fp (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		else
-			glClear_fp (GL_DEPTH_BUFFER_BIT);
-		gldepthmin = 0;
-		gldepthmax = 1;
-		glDepthFunc_fp (GL_LEQUAL);
-	}
-
-	glDepthRange_fp (gldepthmin, gldepthmax);
-
-	if (have_stencil && r_shadows.integer)
-	{
-		glClearStencil_fp(1);
-		glClear_fp(GL_STENCIL_BUFFER_BIT);
-	}
-}
-
 
 /*
 =============
@@ -2324,8 +2522,9 @@ void R_RenderView (void)
 
 //	glFinish_fp ();
 
-	R_Clear ();
+	//R_Clear ();
 
+	R_SetupView(); //johnfitz -- this does everything that should be done once per frame
 	// render normal view
 	R_RenderScene ();
 

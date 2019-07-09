@@ -30,6 +30,8 @@
 #define M_PI		3.14159265358979323846	/* matches value in gcc v2 math.h */
 #endif
 
+#define M_PI_DIV_180 (M_PI / 180.0) //johnfitz
+
 #define	nanmask		(255 << 23)	/* 7F800000 */
 #if 0	/* macro is violating strict aliasing rules */
 #define	IS_NAN(x)	(((*(int *) (char *) &x) & nanmask) == nanmask)

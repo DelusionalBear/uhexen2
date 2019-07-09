@@ -65,6 +65,7 @@ cvar_t		sys_ticrate = {"sys_ticrate", "0.05", CVAR_NONE};
 static	cvar_t	sys_adaptive = {"sys_adaptive", "1", CVAR_ARCHIVE};
 static	cvar_t	host_framerate = {"host_framerate", "0", CVAR_NONE};	// set for slow motion
 static	cvar_t	host_speeds = {"host_speeds", "0", CVAR_NONE};		// set for running times
+cvar_t	host_timescale = { "host_timescale", "0", CVAR_NONE }; //johnfitz
 
 static	cvar_t	serverprofile = {"serverprofile", "0", CVAR_NONE};
 

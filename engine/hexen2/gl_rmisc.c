@@ -238,6 +238,7 @@ void R_Init (void)
 	Cvar_RegisterVariable (&r_speeds);
 	Cvar_RegisterVariable (&r_wholeframe);
 	Cvar_RegisterVariable (&r_texture_external);
+	Cvar_RegisterVariable (&r_drawworld);
 
 	Cvar_RegisterVariable (&gl_clear);
 	Cvar_RegisterVariable (&gl_cull);

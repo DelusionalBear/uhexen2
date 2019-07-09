@@ -145,6 +145,8 @@ typedef struct msurface_s
 {
 	int		visframe;	// should be drawn when node is crossed
 	qboolean	culled;			// johnfitz -- for frustum culling
+	float		mins[3];		// johnfitz -- for frustum culling
+	float		maxs[3];		// johnfitz -- for frustum culling
 
 	mplane_t	*plane;
 	int		flags;
@@ -578,6 +580,7 @@ void	Mod_ReloadTextures (void);
 
 mleaf_t *Mod_PointInLeaf (float *p, qmodel_t *model);
 byte	*Mod_LeafPVS (mleaf_t *leaf, qmodel_t *model);
+byte	*Mod_NoVisPVS(qmodel_t *model);
 
 #endif	/* __HX2_MODEL_H */
 
