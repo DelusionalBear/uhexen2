@@ -196,8 +196,8 @@ extern float	map_wateralpha, map_lavaalpha, map_telealpha, map_slimealpha; //eri
 static GLuint	currenttexture[3] = { GL_UNUSED_TEXTURE, GL_UNUSED_TEXTURE, GL_UNUSED_TEXTURE }; // to avoid unnecessary texture sets
 extern	GLuint		particletexture;
 extern gltexture_t *lightmap_textures[MAX_LIGHTMAPS]; //johnfitz -- changed to an array
-extern	GLuint		playertextures[MAX_CLIENTS];
-extern	GLuint		gl_extra_textures[MAX_EXTRA_TEXTURES];	// generic textures for models
+extern	gltexture_t *playertextures[MAX_CLIENTS];
+extern	gltexture_t *gl_extra_textures[MAX_EXTRA_TEXTURES];	// generic textures for models
 
 //ericw -- VBO
 extern PFNGLBINDBUFFERARBPROC  GL_BindBufferFunc;

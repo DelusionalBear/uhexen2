@@ -359,7 +359,7 @@ static void Draw_TouchAllFilterModes (void)
 	{
 		if (glt->flags & (TEX_NEAREST|TEX_LINEAR))	/* TEX_MIPMAP mustn't be set in this case */
 			continue;
-		GL_Bind (glt->texnum);
+		GL_Bind (glt);
 		glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_filter_idx].magfilter);
 		if (glt->flags & TEX_MIPMAP)
 		{
@@ -411,7 +411,7 @@ static void Draw_TouchMipmapFilterModes (void)
 	{
 		if (glt->flags & TEX_MIPMAP)
 		{
-			GL_Bind (glt->texnum);
+			GL_Bind (glt);
 			glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, modes[gl_filter_idx].magfilter);
 			glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, modes[gl_filter_idx].minfilter);
 			glTexParameterf_fp(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, gl_texture_anisotropy.value);

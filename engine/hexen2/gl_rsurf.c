@@ -639,7 +639,7 @@ void R_RenderBrushPoly (entity_t *e, msurface_t *fa, qboolean override)
 	}
 
 	t = R_TextureAnimation (e, fa->texinfo->texture);
-	GL_Bind (t->gl_texturenum);
+	GL_Bind (t->gltexture);
 
 	if (fa->flags & SURF_DRAWTURB)
 	{	// warp texture, no lightmaps
@@ -793,7 +793,7 @@ void R_RenderBrushPolyMTex (entity_t *e, msurface_t *fa, qboolean override)
 
 	glActiveTextureARB_fp(GL_TEXTURE0_ARB);
 	t = R_TextureAnimation (e, fa->texinfo->texture);
-	GL_Bind (t->gl_texturenum);
+	GL_Bind (t->gltexture);
 
 	if (fa->flags & SURF_DRAWTURB)
 	{

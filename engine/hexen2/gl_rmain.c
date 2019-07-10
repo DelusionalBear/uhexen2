@@ -57,8 +57,11 @@ qboolean	r_cache_thrash;			// compatability
 //GLuint			currenttexture = GL_UNUSED_TEXTURE;	// to avoid unnecessary texture sets
 
 GLuint			particletexture;	// little dot for particles
-GLuint			playertextures[MAX_CLIENTS];	// up to MAX_CLIENTS color translated skins
-GLuint			gl_extra_textures[MAX_EXTRA_TEXTURES];   // generic textures for models
+//GLuint			playertextures[MAX_CLIENTS];	// up to MAX_CLIENTS color translated skins
+gltexture_t *playertextures[MAX_CLIENTS]; //johnfitz -- changed to an array of pointers
+//GLuint			gl_extra_textures[MAX_EXTRA_TEXTURES];   // generic textures for models
+gltexture_t *gl_extra_textures[MAX_EXTRA_TEXTURES];   // generic textures for models
+
 
 int			mirrortexturenum;	// quake texturenum, not gltexturenum
 qboolean	mirror;
