@@ -168,6 +168,8 @@ static cvar_t	vid_config_glx = {"vid_config_glx", "640", CVAR_ARCHIVE};
 static cvar_t	vid_config_gly = {"vid_config_gly", "480", CVAR_ARCHIVE};
 static cvar_t	vid_config_bpp = {"vid_config_bpp", "16", CVAR_ARCHIVE};
 static cvar_t	vid_config_fscr= {"vid_config_fscr", "1", CVAR_ARCHIVE};
+static cvar_t	gl_max_size = { "gl_max_size", "256", CVAR_ARCHIVE };
+
 cvar_t	vid_bpp = { "vid_bpp", "16", CVAR_ARCHIVE };
 
 // cvars for compatibility with the software version
@@ -204,7 +206,7 @@ static const char	*gl_extensions;
 qboolean	is_3dfx = false;
 
 //GLint		gl_max_size = 256;
-extern cvar_t		gl_max_size;
+//extern cvar_t		gl_max_size;
 
 static qboolean	have_NPOT = false;
 qboolean	gl_tex_NPOT = false;

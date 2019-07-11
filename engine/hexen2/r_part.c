@@ -76,7 +76,83 @@ void R_RunParticleEffect2 (vec3_t org, vec3_t dmin, vec3_t dmax, int color, ptyp
 void R_RunParticleEffect3 (vec3_t org, vec3_t box, int color, ptype_t effect, int count);
 void R_RunParticleEffect4 (vec3_t org, float radius, int color, ptype_t effect, int count);
 
+gltexture_t *particletexture, *particletexture1, *particletexture2, *particletexture3, *particletexture4; //johnfitz
+float texturescalefactor; //johnfitz -- compensate for apparent size of different particle textures
+
 //=============================================================================
+
+/*
+===============
+R_ParticleTextureLookup -- johnfitz -- generate nice antialiased 32x32 circle for particles
+===============
+*/
+int R_ParticleTextureLookup(int x, int y, int sharpness)
+{
+	int r; //distance from point x,y to circle origin, squared
+	int a; //alpha value to return
+
+	x -= 16;
+	y -= 16;
+	r = x * x + y * y;
+	r = r > 255 ? 255 : r;
+	a = sharpness * (255 - r);
+	a = q_min(a, 255);
+	return a;
+}
+
+/*
+===============
+R_InitParticleTextures -- johnfitz -- rewritten
+===============
+*/
+void R_InitParticleTextures(void)
+{
+	int			x, y;
+	static byte	particle1_data[64 * 64 * 4];
+	static byte	particle2_data[2 * 2 * 4];
+	static byte	particle3_data[64 * 64 * 4];
+	byte		*dst;
+
+	// particle texture 1 -- circle
+	dst = particle1_data;
+	for (x = 0; x < 64; x++)
+		for (y = 0; y < 64; y++)
+		{
+			*dst++ = 255;
+			*dst++ = 255;
+			*dst++ = 255;
+			*dst++ = R_ParticleTextureLookup(x, y, 8);
+		}
+	particletexture1 = TexMgr_LoadImage(NULL, "particle1", 64, 64, SRC_RGBA, particle1_data, "", (src_offset_t)particle1_data, TEXPREF_PERSIST | TEXPREF_ALPHA | TEXPREF_LINEAR);
+
+	// particle texture 2 -- square
+	dst = particle2_data;
+	for (x = 0; x < 2; x++)
+		for (y = 0; y < 2; y++)
+		{
+			*dst++ = 255;
+			*dst++ = 255;
+			*dst++ = 255;
+			*dst++ = x || y ? 0 : 255;
+		}
+	particletexture2 = TexMgr_LoadImage(NULL, "particle2", 2, 2, SRC_RGBA, particle2_data, "", (src_offset_t)particle2_data, TEXPREF_PERSIST | TEXPREF_ALPHA | TEXPREF_NEAREST);
+
+	// particle texture 3 -- blob
+	dst = particle3_data;
+	for (x = 0; x < 64; x++)
+		for (y = 0; y < 64; y++)
+		{
+			*dst++ = 255;
+			*dst++ = 255;
+			*dst++ = 255;
+			*dst++ = R_ParticleTextureLookup(x, y, 2);
+		}
+	particletexture3 = TexMgr_LoadImage(NULL, "particle3", 64, 64, SRC_RGBA, particle3_data, "", (src_offset_t)particle3_data, TEXPREF_PERSIST | TEXPREF_ALPHA | TEXPREF_LINEAR);
+
+	//set default
+	particletexture = particletexture1;
+	texturescalefactor = 1.27;
+}
 
 
 /*
@@ -107,6 +183,7 @@ void R_InitParticles (void)
 	//JFM: snow test
 	Cvar_RegisterVariable (&snow_flurry);
 	Cvar_RegisterVariable (&snow_active);
+	R_InitParticleTextures(); //johnfitz
 }
 
 

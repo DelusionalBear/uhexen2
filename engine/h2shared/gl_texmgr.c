@@ -23,7 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 extern cvar_t		gl_texture_anisotropy = {"gl_texture_anisotropy", "1", true};
-extern cvar_t		gl_max_size = {"gl_max_size", "0"};
+//extern cvar_t		gl_max_size = {"gl_max_size", "0"};
+static cvar_t	gl_max_size = { "gl_max_size", "256", CVAR_ARCHIVE };
 extern cvar_t		gl_picmip = {"gl_picmip", "0"};
 extern cvar_t		gl_texturemode = { "gl_texturemode", "", CVAR_ARCHIVE };
 int			gl_hardware_maxsize;

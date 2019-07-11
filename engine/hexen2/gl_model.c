@@ -2976,7 +2976,7 @@ static void *Mod_LoadSpriteFrame (void *pin, mspriteframe_t **ppframe, int frame
 
 	q_snprintf (name, sizeof(name), "%s_%i", loadmodel->name, framenum);
 	//pspriteframe->gl_texturenum = GL_LoadTexture (name, (byte *)(pinframe + 1), width, height, TEX_MIPMAP | TEX_ALPHA);
-	pspriteframe->gl_texturenum = TexMgr_LoadImage(NULL, name, width, height, SRC_INDEXED, (byte *)(pinframe + 1),
+	pspriteframe->gltexture = TexMgr_LoadImage(NULL, name, width, height, SRC_INDEXED, (byte *)(pinframe + 1),
 		WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP);
 
 
