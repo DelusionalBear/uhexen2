@@ -598,6 +598,143 @@ void DrawGLPolyMTex (glpoly_t *p)
 
 /*
 ================
+R_BlendLightmaps
+================
+*/
+static void R_BlendLightmaps(qboolean Translucent)
+{
+	unsigned int		i;
+	int			j;
+	glpoly_t	*p;
+	float		*v;
+
+	if (r_fullbright.integer)
+		return;
+
+	if (!Translucent)
+		glDepthMask_fp(0);	// don't bother writing Z
+
+	if (gl_lightmap_format == GL_RGBA)
+	{
+		glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		glColor4f_fp(1.0f, 1.0f, 1.0f, 1.0f);
+		glBlendFunc_fp(GL_ZERO, GL_SRC_COLOR);
+	}
+	else if (gl_lightmap_format == GL_LUMINANCE)
+	{
+		glBlendFunc_fp(GL_ZERO, GL_ONE_MINUS_SRC_COLOR);
+	}
+
+	if (!r_lightmap.integer)
+	{
+		glEnable_fp(GL_BLEND);
+	}
+
+	if (!lightmap_textures[0])
+	{
+		// if lightmaps were hosed in a video mode change, make
+		// sure we allocate new slots for lightmaps, otherwise
+		// we'll probably overwrite some other existing textures.
+		glGenTextures_fp(MAX_LIGHTMAPS, lightmap_textures);
+	}
+
+	for (i = 0; i < MAX_LIGHTMAPS; i++)
+	{
+		p = lightmap_polys[i];
+		if (!p)
+			continue;	// skip if no lightmap
+
+		GL_Bind(lightmap_textures[i]);
+
+		if (lightmap_modified[i])
+		{
+			// if current lightmap was changed reload it
+			// and mark as not changed.
+			lightmap_modified[i] = false;
+			glTexImage2D_fp(GL_TEXTURE_2D, 0, lightmap_bytes, BLOCK_WIDTH,
+				BLOCK_HEIGHT, 0, gl_lightmap_format, GL_UNSIGNED_BYTE,
+				lightmaps + i * BLOCK_WIDTH*BLOCK_HEIGHT*lightmap_bytes);
+		}
+
+		for (; p; p = p->chain)
+		{
+			if (p->flags & SURF_UNDERWATER)
+				DrawGLWaterPolyLightmap(p);
+			else
+			{
+				glBegin_fp(GL_POLYGON);
+				v = p->verts[0];
+				for (j = 0; j < p->numverts; j++, v += VERTEXSIZE)
+				{
+					glTexCoord2f_fp(v[5], v[6]);
+					glVertex3fv_fp(v);
+				}
+				glEnd_fp();
+			}
+		}
+	}
+
+	if (!r_lightmap.integer)
+	{
+		glDisable_fp(GL_BLEND);
+	}
+
+	if (gl_lightmap_format == GL_RGBA)
+	{
+		glBlendFunc_fp(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	}
+	else if (gl_lightmap_format == GL_LUMINANCE)
+	{
+		glBlendFunc_fp(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	}
+
+	if (!Translucent)
+		glDepthMask_fp(1);	// back to normal Z buffering
+}
+
+static void R_UpdateLightmaps(qboolean Translucent)
+{
+	unsigned int		i;
+	glpoly_t	*p;
+
+	if (r_fullbright.integer)
+		return;
+
+	glActiveTextureARB_fp(GL_TEXTURE1_ARB);
+
+	if (!lightmap_textures[0])
+	{
+		// if lightmaps were hosed in a video mode change, make
+		// sure we allocate new slots for lightmaps, otherwise
+		// we'll probably overwrite some other existing textures.
+		glGenTextures_fp(MAX_LIGHTMAPS, lightmap_textures);
+	}
+
+	for (i = 0; i < MAX_LIGHTMAPS; i++)
+	{
+		p = lightmap_polys[i];
+		if (!p)
+			continue;	// skip if no lightmap
+
+		GL_Bind(lightmap_textures[i]);
+
+		if (lightmap_modified[i])
+		{
+			// if current lightmap was changed reload it
+			// and mark as not changed.
+			lightmap_modified[i] = false;
+			glTexImage2D_fp(GL_TEXTURE_2D, 0, lightmap_bytes, BLOCK_WIDTH,
+				BLOCK_HEIGHT, 0, gl_lightmap_format, GL_UNSIGNED_BYTE,
+				lightmaps + i * BLOCK_WIDTH*BLOCK_HEIGHT*lightmap_bytes);
+		}
+	}
+
+	glActiveTextureARB_fp(GL_TEXTURE0_ARB);
+}
+
+/*
+================
 R_RenderBrushPoly
 ================
 */
@@ -1812,7 +1949,6 @@ fullbrights:
 DrawTextureChains
 ================
 */
-/*
 static void DrawTextureChains (entity_t *e)
 {
 	int		i;
@@ -1824,7 +1960,7 @@ static void DrawTextureChains (entity_t *e)
 		t = cl.worldmodel->textures[i];
 		if (!t)
 			continue;
-		s = t->texturechain;
+		s = t->texturechains[0];
 		if (!s)
 			continue;
 		if (i == skytexturenum)
@@ -1885,10 +2021,9 @@ static void DrawTextureChains (entity_t *e)
 
 		}
 
-		t->texturechain = NULL;
+		t->texturechains[0] = NULL;
 	}
 }
-*/
 
 /*
 =================
@@ -2044,7 +2179,6 @@ WORLD MODEL
 R_RecursiveWorldNode
 ================
 */
-/*
 static void R_RecursiveWorldNode (mnode_t *node)
 {
 	int		c, side;
@@ -2139,8 +2273,8 @@ static void R_RecursiveWorldNode (mnode_t *node)
 			if (!mirror
 				|| surf->texinfo->texture != cl.worldmodel->textures[mirrortexturenum])
 			{
-				surf->texturechain = surf->texinfo->texture->texturechain;
-				surf->texinfo->texture->texturechain = surf;
+				surf->texturechain = surf->texinfo->texture->texturechains[0];
+				surf->texinfo->texture->texturechains[0] = surf;
 			}
 		}
 	}
@@ -2148,7 +2282,6 @@ static void R_RecursiveWorldNode (mnode_t *node)
 // recurse down the back side
 	R_RecursiveWorldNode (node->children[!side]);
 }
-*/
 
 /*
 =============
@@ -2157,14 +2290,16 @@ R_DrawWorld
 */
 void R_DrawWorld (void)
 {
-	if (!r_drawworld_cheatsafe)
-		return;
+	//if (!r_drawworld_cheatsafe)
+	//	return;
 
-	R_DrawTextureChains(cl.worldmodel, NULL, chain_world);
-	/*
+	//R_DrawTextureChains(cl.worldmodel, NULL, chain_world);
+	
 	VectorCopy (r_refdef.vieworg, modelorg);
 
-	currenttexture = GL_UNUSED_TEXTURE;
+	currenttexture[0] = GL_UNUSED_TEXTURE;
+	currenttexture[1] = GL_UNUSED_TEXTURE;
+	currenttexture[2] = GL_UNUSED_TEXTURE;
 
 	glColor4f_fp (1.0f,1.0f,1.0f,1.0f);
 	memset (lightmap_polys, 0, sizeof(lightmap_polys));
@@ -2193,7 +2328,6 @@ void R_DrawWorld (void)
 #ifdef QUAKE2
 	R_DrawSkyBox ();
 #endif
-*/
 }
 
 
