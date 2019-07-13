@@ -50,7 +50,7 @@ static cvar_t	gl_texture_anisotropy = {"gl_texture_anisotropy", "1", CVAR_ARCHIV
 
 static GLuint		menuplyr_textures[MAX_PLAYER_CLASS];	// player textures in multiplayer config screens
 static GLuint		draw_backtile;
-static GLuint		conback;
+gltexture_t	*conback;
 gltexture_t *char_texture; //johnfitz
 gltexture_t *cs_texture;	// crosshair texture
 gltexture_t *char_smalltexture;
@@ -615,6 +615,7 @@ void Draw_Init (void)
 	// conback = GL_LoadTexture ("conback", p->data, p->width, p->height, TEX_LINEAR);
 	conback = TexMgr_LoadImage(NULL, WADFILENAME":conback", p->width, p->height, SRC_INDEXED, p->data,
 		WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP);
+	//conback = (qpic_t *)FS_LoadTempFile("gfx/menu/conback.lmp", NULL);
 
 	// load the backtile
 	p = (qpic_t *)FS_LoadTempFile ("gfx/menu/backtile.lmp", NULL);
@@ -1230,14 +1231,18 @@ Draw_ConsoleBackground
 
 ================
 */
-/*
-static void Draw_ConsolePic (int lines, float ofs, qpic_t pic, float alpha)
+static void Draw_ConsolePic (int lines, float ofs, gltexture_t *pic, float alpha)
 {
+	//glpic_t			*gl;
+
+	//gl = (glpic_t *)pic->data;
+
 	glDisable_fp(GL_ALPHA_TEST);
 	glEnable_fp (GL_BLEND);
 	glCullFace_fp(GL_FRONT);
 	glColor4f_fp (1,1,1,alpha);
-	GL_Bind (pic);
+	//GL_Bind(gl->gltexture);
+	GL_Bind(pic);
 
 	glBegin_fp (GL_QUADS);
 	glTexCoord2f_fp (0, 0 + ofs);
@@ -1254,7 +1259,6 @@ static void Draw_ConsolePic (int lines, float ofs, qpic_t pic, float alpha)
 	glEnable_fp(GL_ALPHA_TEST);
 	glDisable_fp (GL_BLEND);
 }
-*/
 
 /*
 static void Draw_ConsolePic (int lines, float ofs, GLuint num, float alpha)
@@ -1297,6 +1301,7 @@ static void Draw_ConsoleVersionInfo (int lines)
 Draw_ConsoleBackground -- johnfitz -- rewritten
 ================
 */
+/*
 void Draw_ConsoleBackground(void)
 {
 	qpic_t *pic;
@@ -1335,9 +1340,50 @@ void Draw_ConsoleBackground(void)
 		}
 	}
 }
-
-
+*/
 /*
+void Draw_ConsoleBackground(int lines)
+{
+	qpic_t *pic;
+	float alpha;
+
+	pic = Draw_CachePic("gfx/menu/conback.lmp");
+	pic->width = vid.conwidth;
+	pic->height = vid.conheight;
+
+	alpha = (con_forcedup) ? 1.0 : scr_conalpha.value;
+
+	GL_SetCanvas(CANVAS_CONSOLE); //in case this is called from weird places
+
+	if (alpha > 0.0)
+	{
+		if (alpha < 1.0)
+		{
+			glEnable_fp(GL_BLEND);
+			glColor4f_fp(1, 1, 1, alpha);
+			glDisable_fp(GL_ALPHA_TEST);
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		}
+
+		Draw_Pic(0, 0, pic);
+
+		if (alpha < 1.0)
+		{
+			glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+			glEnable_fp(GL_ALPHA_TEST);
+			glDisable_fp(GL_BLEND);
+			glColor4f_fp(1, 1, 1, 1);
+		}
+	}
+#if defined(H2W)
+	if (cls.download)
+		return;
+#endif
+	Draw_ConsoleVersionInfo(lines);
+}
+*/
+
+
 void Draw_ConsoleBackground (int lines)
 {
 	int	y;
@@ -1352,10 +1398,10 @@ void Draw_ConsoleBackground (int lines)
 #if defined(H2W)
 	if (cls.download)
 		return;
-#endif	/* H2W */
-//	Draw_ConsoleVersionInfo (lines);
-//}
-//*/
+#endif
+	Draw_ConsoleVersionInfo (lines);
+}
+
 
 /*
 =============

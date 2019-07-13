@@ -1960,7 +1960,7 @@ static void DrawTextureChains (entity_t *e)
 		t = cl.worldmodel->textures[i];
 		if (!t)
 			continue;
-		s = t->texturechains[0];
+		s = t->texturechains[0]; //shan?
 		if (!s)
 			continue;
 		if (i == skytexturenum)
@@ -2273,8 +2273,8 @@ static void R_RecursiveWorldNode (mnode_t *node)
 			if (!mirror
 				|| surf->texinfo->texture != cl.worldmodel->textures[mirrortexturenum])
 			{
-				surf->texturechain = surf->texinfo->texture->texturechains[0];
-				surf->texinfo->texture->texturechains[0] = surf;
+				surf->texturechain = surf->texinfo->texture->texturechains[0]; //shan?
+				surf->texinfo->texture->texturechains[0] = surf; //shan?
 			}
 		}
 	}
