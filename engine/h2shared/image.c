@@ -435,7 +435,7 @@ byte *Image_LoadPCX (FILE *f, int *width, int *height)
 	data = (byte *) Hunk_Alloc((w*h+1)*4); //+1 to allow reading padding byte on last line
 
 	//load palette
-	fseek (f, start + 1337 - 768, SEEK_SET); //shan 1337 = com_filesize ???
+	fseek (f, start + fs_filesize - 768, SEEK_SET);
 	fread (palette, 1, 768, f);
 
 	//back to start of image data

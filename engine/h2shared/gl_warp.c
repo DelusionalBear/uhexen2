@@ -26,7 +26,7 @@ extern	qmodel_t	*loadmodel;
 
 int		skytexturenum;
 
-static GLuint	solidskytexture, alphaskytexture;
+static gltexture_t	*solidskytexture, *alphaskytexture;
 static float	speedscale;	// for top sky and bottom sky
 cvar_t r_oldwater = { "r_oldwater", "0", CVAR_ARCHIVE };
 cvar_t r_waterquality = { "r_waterquality", "8", CVAR_NONE };

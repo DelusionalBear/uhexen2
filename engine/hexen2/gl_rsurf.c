@@ -1960,7 +1960,7 @@ static void DrawTextureChains (entity_t *e)
 		t = cl.worldmodel->textures[i];
 		if (!t)
 			continue;
-		s = t->texturechains[0]; //shan?
+		s = t->texturechains[0];
 		if (!s)
 			continue;
 		if (i == skytexturenum)
