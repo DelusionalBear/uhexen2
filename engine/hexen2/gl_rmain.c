@@ -935,7 +935,8 @@ static void R_DrawAliasModel (entity_t *e)
 	if ((e->model->flags & EF_SPECIAL_TRANS))
 	{
 		glEnable_fp (GL_BLEND);
-		glBlendFunc_fp (GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA);
+		//glBlendFunc_fp (GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA);
+		glBlendFunc_fp(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	//	glColor3f_fp (1,1,1);
 		model_constant_alpha = 1.0f;
 		glDisable_fp (GL_CULL_FACE);
@@ -1707,7 +1708,6 @@ static void R_SetFrustum (void)
 	}
 }
 
-
 /*
 ===============
 R_SetupFrame
@@ -1821,6 +1821,19 @@ static void R_SetupGL (void)
 	glDisable_fp(GL_BLEND);
 	glDisable_fp(GL_ALPHA_TEST);
 	glEnable_fp(GL_DEPTH_TEST);
+}
+
+/*
+===============
+R_SetupScene -- johnfitz -- this is the stuff that needs to be done once per eye in stereo mode
+===============
+*/
+void R_SetupScene(void)
+{
+	R_PushDlights();
+	R_AnimateLight();
+	r_framecount++;
+	R_SetupGL();
 }
 
 /*

@@ -531,14 +531,19 @@ bsp_tex_internal:
 
 		extraflags = 0;
 		if (tx->name[0] == '{')
-			extraflags |= TEX_HOLEY;
+			extraflags |= TEXPREF_ALPHA;
 		// ericw
 
 		if (!q_strncasecmp(mt->name, "sky", 3)) //sky texture //also note -- was Q_strncmp, changed to match qbsp
 			Sky_LoadTexture(tx);
 		else
-			tx->gltexture = TexMgr_LoadImage(loadmodel, tx->name, tx->width, tx->height, SRC_INDEXED, (byte *)(tx + 1),
-				WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP);
+			tx->gltexture = TexMgr_LoadImage(loadmodel, tx->name, tx->width, tx->height,
+				SRC_INDEXED, (byte *)(tx + 1), loadmodel->name, 0, TEXPREF_MIPMAP | extraflags);
+
+			//tx->gltexture = TexMgr_LoadImage(loadmodel, tx->name, tx->width, tx->height, SRC_INDEXED, (byte *)(tx + 1),
+			//	SRC_INDEXED, (byte *)(tx + 1), loadmodel->name, 0, TEXPREF_MIPMAP | extraflags);
+			//tx->gltexture = TexMgr_LoadImage(loadmodel, tx->name, tx->width, tx->height, SRC_INDEXED, (byte *)(tx + 1),
+			//	WADFILENAME, 0, TEXPREF_ALPHA | TEXPREF_NEAREST | TEXPREF_NOPICMIP);
 			//tx->gl_texturenum = GL_LoadTexture (mt->name, (byte *)(tx+1), tx->width, tx->height, (TEX_MIPMAP | extraflags));
 	}
 
