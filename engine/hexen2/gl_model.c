@@ -581,14 +581,14 @@ bsp_tex_internal:
 				{
 					q_strlcpy(texturename, filename, sizeof(texturename));
 					tx->gltexture = TexMgr_LoadImage(loadmodel, texturename, fwidth, fheight,
-						SRC_RGBA, data, filename, 0, TEXPREF_NONE);
+						SRC_RGBA, data, filename, 0, TEXPREF_NONE | TEXPREF_ALPHA);
 				}
 				else //use the texture from the bsp file
 				{
 					q_snprintf(texturename, sizeof(texturename), "%s:%s", loadmodel->name, tx->name);
 					offset = (src_offset_t)(mt + 1) - (src_offset_t)mod_base;
 					tx->gltexture = TexMgr_LoadImage(loadmodel, texturename, tx->width, tx->height,
-						SRC_INDEXED, (byte *)(tx + 1), loadmodel->name, offset, TEXPREF_NONE);
+						SRC_INDEXED, (byte *)(tx + 1), loadmodel->name, offset, TEXPREF_NONE | TEXPREF_ALPHA);
 				}
 
 				//now create the warpimage, using dummy data from the hunk to create the initial image
@@ -596,7 +596,7 @@ bsp_tex_internal:
 				Hunk_FreeToLowMark(mark);
 				q_snprintf(texturename, sizeof(texturename), "%s_warp", texturename);
 				tx->warpimage = TexMgr_LoadImage(loadmodel, texturename, gl_warpimagesize,
-					gl_warpimagesize, SRC_RGBA, hunk_base, "", (src_offset_t)hunk_base, TEXPREF_NOPICMIP | TEXPREF_WARPIMAGE);
+					gl_warpimagesize, SRC_RGBA, hunk_base, "", (src_offset_t)hunk_base, TEXPREF_NOPICMIP | TEXPREF_WARPIMAGE | TEXPREF_ALPHA);
 				tx->update_warp = true;
 			}
 			else //regular texture
@@ -624,7 +624,7 @@ bsp_tex_internal:
 				if (data) //load external image
 				{
 					tx->gltexture = TexMgr_LoadImage(loadmodel, filename, fwidth, fheight,
-						SRC_RGBA, data, filename, 0, TEXPREF_MIPMAP | extraflags);
+						SRC_RGBA, data, filename, 0, TEXPREF_MIPMAP | extraflags | TEXPREF_ALPHA);
 
 					//now try to load glow/luma image from the same place
 					Hunk_FreeToLowMark(mark);
@@ -638,7 +638,7 @@ bsp_tex_internal:
 
 					if (data)
 						tx->fullbright = TexMgr_LoadImage(loadmodel, filename2, fwidth, fheight,
-							SRC_RGBA, data, filename, 0, TEXPREF_MIPMAP | extraflags);
+							SRC_RGBA, data, filename, 0, TEXPREF_MIPMAP | extraflags | TEXPREF_ALPHA);
 				}
 				else //use the texture from the bsp file
 				{
@@ -655,7 +655,7 @@ bsp_tex_internal:
 					//else
 					{
 						tx->gltexture = TexMgr_LoadImage(loadmodel, texturename, tx->width, tx->height,
-							SRC_INDEXED, (byte *)(tx + 1), loadmodel->name, offset, TEXPREF_MIPMAP | extraflags);
+							SRC_INDEXED, (byte *)(tx + 1), loadmodel->name, offset, TEXPREF_MIPMAP | extraflags | TEXPREF_ALPHA);
 					}
 				}
 				Hunk_FreeToLowMark(mark);
@@ -2381,65 +2381,73 @@ static void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype, int md
 
 	s = pheader->skinwidth * pheader->skinheight;
 
-	tex_mode = TEXPREF_NONE | TEXPREF_MIPMAP;
+	tex_mode = TEXPREF_NONE | TEXPREF_MIPMAP | TEXPREF_ALPHA;
+	//if ((mdl_flags & EF_HOLEY) || (mdl_flags & EF_TRANSPARENT) || (mdl_flags & EF_SPECIAL_TRANS))
+	if (mdl_flags & EF_HOLEY)
+		tex_mode |= TEXPREF_ALPHA;
+
+	/*
 	if (mdl_flags & EF_TRANSPARENT)
 		tex_mode |= TEXPREF_TRANSPARENT;
 	else if (mdl_flags & EF_HOLEY)
 		tex_mode |= TEX_HOLEY;
 	else if (mdl_flags & EF_SPECIAL_TRANS)
 		tex_mode |= TEX_SPECIAL_TRANS;
+	*/
 
 	for (i = 0; i < numskins; i++)
 	{
 	    k = LittleLong (pskintype->type);		/* aliasskintype_t */
-	    if (k == ALIAS_SKIN_SINGLE) {
-		Mod_FloodFillSkin (skin, pheader->skinwidth, pheader->skinheight);
+	    if (k == ALIAS_SKIN_SINGLE) 
+		{
+			Mod_FloodFillSkin (skin, pheader->skinwidth, pheader->skinheight);
 
-		// save 8 bit texels for the player model to remap
-		if (!strcmp(loadmodel->name,"models/paladin.mdl"))
-		{
-			if (s > (int) sizeof(player_8bit_texels[0]))
-				goto skin_too_large;
-			memcpy (player_8bit_texels[0], (byte *)(pskintype + 1), s);
-		}
-		else if (!strcmp(loadmodel->name,"models/crusader.mdl"))
-		{
-			if (s > (int) sizeof(player_8bit_texels[1]))
-				goto skin_too_large;
-			memcpy (player_8bit_texels[1], (byte *)(pskintype + 1), s);
-		}
-		else if (!strcmp(loadmodel->name,"models/necro.mdl"))
-		{
-			if (s > (int) sizeof(player_8bit_texels[2]))
-				goto skin_too_large;
-			memcpy (player_8bit_texels[2], (byte *)(pskintype + 1), s);
-		}
-		else if (!strcmp(loadmodel->name,"models/assassin.mdl"))
-		{
-			if (s > (int) sizeof(player_8bit_texels[3]))
-				goto skin_too_large;
-			memcpy (player_8bit_texels[3], (byte *)(pskintype + 1), s);
-		}
-		else if (!strcmp(loadmodel->name,"models/succubus.mdl"))
-		{
-			if (s > (int) sizeof(player_8bit_texels[4]))
-				goto skin_too_large;
-			memcpy (player_8bit_texels[4], (byte *)(pskintype + 1), s);
-		}
+			// save 8 bit texels for the player model to remap
+			if (!strcmp(loadmodel->name,"models/paladin.mdl"))
+			{
+				if (s > (int) sizeof(player_8bit_texels[0]))
+					goto skin_too_large;
+				memcpy (player_8bit_texels[0], (byte *)(pskintype + 1), s);
+			}
+			else if (!strcmp(loadmodel->name,"models/crusader.mdl"))
+			{
+				if (s > (int) sizeof(player_8bit_texels[1]))
+					goto skin_too_large;
+				memcpy (player_8bit_texels[1], (byte *)(pskintype + 1), s);
+			}
+			else if (!strcmp(loadmodel->name,"models/necro.mdl"))
+			{
+				if (s > (int) sizeof(player_8bit_texels[2]))
+					goto skin_too_large;
+				memcpy (player_8bit_texels[2], (byte *)(pskintype + 1), s);
+			}
+			else if (!strcmp(loadmodel->name,"models/assassin.mdl"))
+			{
+				if (s > (int) sizeof(player_8bit_texels[3]))
+					goto skin_too_large;
+				memcpy (player_8bit_texels[3], (byte *)(pskintype + 1), s);
+			}
+			else if (!strcmp(loadmodel->name,"models/succubus.mdl"))
+			{
+				if (s > (int) sizeof(player_8bit_texels[4]))
+					goto skin_too_large;
+				memcpy (player_8bit_texels[4], (byte *)(pskintype + 1), s);
+			}
 
-		offset = (src_offset_t)(pskintype + 1) - (src_offset_t)mod_base;
-		q_snprintf (name, sizeof(name), "%s_%i", loadmodel->name, i);
-		pheader->gltextures[i][0] =
-		pheader->gltextures[i][1] =
-		pheader->gltextures[i][2] =
-		pheader->gltextures[i][3] = TexMgr_LoadImage(loadmodel, name, pheader->skinwidth, pheader->skinheight,
-			SRC_INDEXED, (byte *)(pskintype + 1), loadmodel->name, offset, tex_mode | TEXPREF_NOBRIGHT);
+			offset = (src_offset_t)(pskintype + 1) - (src_offset_t)mod_base;
+			q_snprintf (name, sizeof(name), "%s_%i", loadmodel->name, i);
+			pheader->gltextures[i][0] =
+			pheader->gltextures[i][1] =
+			pheader->gltextures[i][2] =
+			pheader->gltextures[i][3] = TexMgr_LoadImage(loadmodel, name, pheader->skinwidth, pheader->skinheight,
+				SRC_INDEXED, (byte *)(pskintype + 1), loadmodel->name, offset, tex_mode | TEXPREF_NOBRIGHT | TEXPREF_ALPHA);
 			
-			//GL_LoadTexture (name, (byte *)(pskintype + 1),
-			//pheader->skinwidth, pheader->skinheight, tex_mode);
-		pskintype = (daliasskintype_t *)((byte *)(pskintype+1) + s);
+				//GL_LoadTexture (name, (byte *)(pskintype + 1),
+				//pheader->skinwidth, pheader->skinheight, tex_mode);
+			pskintype = (daliasskintype_t *)((byte *)(pskintype+1) + s);
 
-	    } else /*if (k == ALIAS_SKIN_GROUP)*/
+	    }
+		else /*if (k == ALIAS_SKIN_GROUP)*/
 	    {						/* animating skin group.  yuck. */
 		pskintype++;
 		pinskingroup = (daliasskingroup_t *)pskintype;
@@ -2453,7 +2461,7 @@ static void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype, int md
 			offset = (src_offset_t)(pskintype + 1) - (src_offset_t)mod_base;
 			q_snprintf (name, sizeof(name), "%s_%i_%i", loadmodel->name, i, j);
 			pheader->gltextures[i][j&3] = TexMgr_LoadImage(loadmodel, name, pheader->skinwidth, pheader->skinheight,
-				SRC_INDEXED, (byte *)(pskintype + 1), loadmodel->name, offset, tex_mode | TEXPREF_NOBRIGHT);
+				SRC_INDEXED, (byte *)(pskintype + 1), loadmodel->name, offset, tex_mode | TEXPREF_NOBRIGHT | TEXPREF_ALPHA);
 				
 				//GL_LoadTexture (name, (byte *)(pskintype),
 				//	pheader->skinwidth, pheader->skinheight, tex_mode);
@@ -2710,6 +2718,22 @@ static void Mod_SetAliasModelExtraFlags (qmodel_t *mod)
 		mod->glow_color[2] = 1.0f;
 		mod->glow_color[3] = 0.5f;
 	}
+}
+
+
+/*
+=================
+Mod_SetExtraFlags -- johnfitz -- set up extra flags that aren't in the mdl
+=================
+*/
+void Mod_SetExtraFlags(qmodel_t *mod)
+{
+	extern cvar_t r_nolerp_list, r_noshadow_list;
+
+	if (!mod || mod->type != mod_alias)
+		return;
+
+	mod->flags &= (0xFF | EF_HOLEY); //only preserve first byte, plus MF_HOLEY
 }
 
 
@@ -3051,6 +3075,8 @@ static void Mod_LoadAliasModel (qmodel_t *mod, void *buffer)
 	mod->maxs[0] = aliasmaxs[0] + 10;
 	mod->maxs[1] = aliasmaxs[1] + 10;
 	mod->maxs[2] = aliasmaxs[2] + 10;
+
+	Mod_SetExtraFlags(mod); //johnfitz
 
 //
 // build the draw lists

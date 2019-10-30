@@ -488,6 +488,13 @@ void TexMgr_LoadPalette(void)
 		*dst++ = *src++;
 		*dst++ = 255;
 	}
+	((byte *)&d_8to24table[0])[0] = 255;
+	((byte *)&d_8to24table[0])[1] = 255;
+	((byte *)&d_8to24table[0])[2] = 255;
+	((byte *)&d_8to24table[0])[3] = 0;
+	((byte *)&d_8to24table[255])[0] = 255;
+	((byte *)&d_8to24table[255])[1] = 255;
+	((byte *)&d_8to24table[255])[2] = 255;
 	((byte *)&d_8to24table[255])[3] = 0;
 
 	//fullbright palette, 0-223 are black (for additive blending)
@@ -1081,15 +1088,27 @@ static void TexMgr_LoadImage32(gltexture_t *glt, unsigned *data)
 /*
 ================
 TexMgr_LoadImage8 -- handles 8bit source data, then passes it to LoadImage32
+
+modes:
+0 - standard
+1 - color 0 transparent, odd - translucent, even - full value
+2 - color 0 transparent
+3 - special (particle translucency table)
 ================
 */
 static void TexMgr_LoadImage8(gltexture_t *glt, byte *data)
 {
+	unsigned int		*trans;
 	extern cvar_t gl_fullbrights;
 	qboolean padw = false, padh = false;
 	byte padbyte;
 	unsigned int *usepal;
-	int i;
+	int			mark;
+	int i, p, s;
+
+	s = glt->width * glt->height;
+	mark = Hunk_LowMark();
+	trans = (unsigned int *)Hunk_AllocName(s * sizeof(unsigned int), "texbuf_upload8");
 
 	// HACK HACK HACK -- taken from tomazquake
 	if (strstr(glt->name, "shot1sid") &&
@@ -1106,8 +1125,80 @@ static void TexMgr_LoadImage8(gltexture_t *glt, byte *data)
 	if (glt->flags & TEXPREF_ALPHA && !(glt->flags & TEXPREF_CONCHARS))
 	{
 		for (i = 0; i < (int)(glt->width * glt->height); i++)
+		{
 			if (data[i] == 255) //transparent index
+			{
 				break;
+				/*
+				p = data[i];
+				trans[i] = d_8to24table[p];
+
+				if (p == 255)
+				{
+					if (noalpha)
+						noalpha = false;
+
+					// transparent, so scan around for another color
+					// to avoid alpha fringes
+					// this is a replacement from Quake II for Raven's
+					// "neighboring colors" code
+					if (i > glt->width && data[i - glt->width] != 255)
+						p = data[i - glt->width];
+					else if (i < s - glt->width && data[i + glt->width] != 255)
+						p = data[i + glt->width];
+					else if (i > 0 && data[i - 1] != 255)
+						p = data[i - 1];
+					else if (i < s - 1 && data[i + 1] != 255)
+						p = data[i + 1];
+					else
+						p = 0;
+					// copy rgb components 
+					((byte *)&trans[i])[0] = ((byte *)&d_8to24table[p])[0];
+					((byte *)&trans[i])[1] = ((byte *)&d_8to24table[p])[1];
+					((byte *)&trans[i])[2] = ((byte *)&d_8to24table[p])[2];
+				}
+
+				if (glt->flags & TEXPREF_TRANSPARENT)
+				{
+					p = data[i];
+					if (p == 0)
+					{
+						trans[i] &= MASK_rgb;
+					}
+					else if (p & 1)
+					{
+						p = (int)(255 * r_wateralpha.value) & 0xff;
+						trans[i] &= MASK_rgb;
+						trans[i] |= p << SHIFT_a;
+					}
+					else
+					{
+						trans[i] |= MASK_a;
+					}
+				}
+				else if (glt->flags & TEX_HOLEY)
+				{
+					p = data[i];
+					if (glt->name[0] == '{')
+					{
+						if (p == 255)
+							trans[i] &= MASK_rgb;
+					}
+					else
+					{
+						if (p == 0)
+							trans[i] &= MASK_rgb;
+					}
+				}
+				else if (glt->flags & TEX_SPECIAL_TRANS)
+				{
+					p = data[i];
+					trans[i] = d_8to24table[ColorIndex[p >> 4]] & MASK_rgb;
+					trans[i] |= ((int)ColorPercent[p & 15] & 0xff) << SHIFT_a;
+				}
+				*/
+			}
+		}
 		if (i == (int)(glt->width * glt->height))
 			glt->flags -= TEXPREF_ALPHA;
 	}
@@ -1119,7 +1210,7 @@ static void TexMgr_LoadImage8(gltexture_t *glt, byte *data)
 			usepal = d_8to24table_fbright_fence;
 		else
 			usepal = d_8to24table_fbright;
-		padbyte = 0;
+		padbyte = 255;
 	}
 	else if (glt->flags & TEXPREF_NOBRIGHT && gl_fullbrights.value)
 	{
@@ -1127,12 +1218,12 @@ static void TexMgr_LoadImage8(gltexture_t *glt, byte *data)
 			usepal = d_8to24table_nobright_fence;
 		else
 			usepal = d_8to24table_nobright;
-		padbyte = 0;
+		padbyte = 255;
 	}
 	else if (glt->flags & TEXPREF_CONCHARS)
 	{
 		usepal = d_8to24table_conchars;
-		padbyte = 0;
+		padbyte = 255;
 	}
 	else
 	{
@@ -1140,7 +1231,7 @@ static void TexMgr_LoadImage8(gltexture_t *glt, byte *data)
 		padbyte = 255;
 	}
 
-	// pad each dimention, but only if it's not going to be downsampled later
+	// pad each dimension, but only if it's not going to be downsampled later
 	if (glt->flags & TEXPREF_PAD)
 	{
 		if ((int)glt->width < TexMgr_SafeTextureSize(glt->width))

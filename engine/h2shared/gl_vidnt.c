@@ -2366,7 +2366,7 @@ void	VID_Init (const unsigned char *palette)
 	Cmd_AddCommand ("vid_describemodes", VID_DescribeModes_f);
 	Cmd_AddCommand ("vid_restart", VID_Restart_f);
 
-	VID_InitPalette (palette);
+	//VID_InitPalette (palette);
 
 	// don't let fxMesa cheat multitexturing
 	_putenv (fxmesa_env_multitex);

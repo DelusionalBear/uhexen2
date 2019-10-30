@@ -937,11 +937,12 @@ static void R_DrawAliasModel (entity_t *e)
 // [0][0] [1][1] [2][2]
 //	glScalef_fp (paliashdr->scale[0], paliashdr->scale[1], paliashdr->scale[2]);
 	glScalef_fp (tmatrix[0][0],tmatrix[1][1],tmatrix[2][2]);
-
+	glEnable_fp(GL_ALPHA_TEST);
 	if ((e->model->flags & EF_SPECIAL_TRANS))
 	{
 		glEnable_fp (GL_BLEND);
-		glBlendFunc_fp (GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA);
+		glEnable_fp(GL_ALPHA_TEST);
+		//glBlendFunc_fp (GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA);
 	//	glColor3f_fp (1,1,1);
 		model_constant_alpha = 1.0f;
 		glDisable_fp (GL_CULL_FACE);
@@ -949,7 +950,8 @@ static void R_DrawAliasModel (entity_t *e)
 	else if (e->drawflags & DRF_TRANSLUCENT)
 	{
 		glEnable_fp (GL_BLEND);
-		glBlendFunc_fp(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glEnable_fp(GL_ALPHA_TEST);
+		//glBlendFunc_fp(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		//glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 	//	glColor4f_fp (1,1,1,r_wateralpha.value);
@@ -958,12 +960,14 @@ static void R_DrawAliasModel (entity_t *e)
 	else if ((e->model->flags & EF_TRANSPARENT))
 	{
 		glEnable_fp(GL_BLEND);
-		//glEnable_fp(GL_ALPHA_TEST);
-		//glBlendFunc_fp(GL_ONE, GL_SRC_COLOR); //shan?
+		glEnable_fp(GL_ALPHA_TEST);
+		//glAlphaFunc_fp(GL_ALWAYS, 0);
+		//glAlphaFunc_fp(GL_GREATER, 0.632); // 1 - e^-1 : replaced 0.666 to avoid clipping of smaller fonts/graphics
+			//glBlendFunc_fp(GL_ONE, GL_SRC_COLOR); //shan?
 		//glBlendFunc_fp(GL_SRC_COLOR, GL_ONE_MINUS_SRC_COLOR);
 		//glBlendFunc_fp(GL_SRC_COLOR, GL_SRC_ALPHA);
-		glBlendFunc_fp(GL_ONE, GL_SRC_COLOR);
-		//	glColor3f_fp (1,1,1);
+		//glBlendFunc_fp(GL_ONE, GL_SRC_COLOR);
+			//glColor3f_fp (1,1,1);
 		//glColor4f_fp(1.0f, 1.0f, 1.0f, 0.65f);
 		model_constant_alpha = 1.0f;
 		//glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
@@ -981,9 +985,13 @@ static void R_DrawAliasModel (entity_t *e)
 	}
 	else if ((e->model->flags & EF_HOLEY))
 	{
+		glEnable_fp(GL_ALPHA_TEST);
+		//glAlphaFunc_fp(GL_ALWAYS, 0);
+		//glAlphaFunc_fp(GL_GREATER, 0);
+
 		glEnable_fp (GL_BLEND);
-	//	glColor3f_fp (1,1,1);
-		glBlendFunc_fp(GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA);
+		//glColor3f_fp (1,1,1);
+		//glBlendFunc_fp(GL_SRC_COLOR, GL_ZERO); //shan?
 		model_constant_alpha = 1.0f;
 	}
 	else
@@ -1045,7 +1053,7 @@ static void R_DrawAliasModel (entity_t *e)
 
 	if (gl_smoothmodels.integer)
 		glShadeModel_fp (GL_SMOOTH);
-	glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	//glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 #if defined(__AMIGA__) && defined(REFGL_MINIGL)
 	if (gl_affinemodels.integer)
@@ -1054,7 +1062,19 @@ static void R_DrawAliasModel (entity_t *e)
 	if (gl_affinemodels.integer)
 		glHint_fp (GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
 #endif
+	
+	//glEnable_fp(GL_ALPHA_TEST);
+	//glAlphaFunc_fp(GL_GREATER, 0);
+	//glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	//glEnable_fp(GL_BLEND);
+	//glBlendFunc_fp(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	R_SetupAliasFrame(e, paliashdr, false);
+	//glBlendFunc_fp(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	//glDisable_fp(GL_BLEND);
+	//glTexEnvf_fp(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	//glAlphaFunc_fp(GL_GREATER, 0.632); // 1 - e^-1 : replaced 0.666 to avoid clipping of smaller fonts/graphics
+	//glDisable_fp(GL_ALPHA_TEST);
+	
 	/*
 	//one pass with no fog
 	Fog_DisableGFog();
@@ -1537,7 +1557,7 @@ static void R_DrawViewModel (void)
 		}
 	}
 
-	cl.light_level = ambientlight;
+	//cl.light_level = ambientlight;
 
 	if ((cl.v.health <= 0) ||
 	    (chase_active.integer) ||
@@ -1549,11 +1569,13 @@ static void R_DrawViewModel (void)
 	}
 
 	// hack the depth range to prevent view model from poking into walls
-	glDepthRange_fp (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
-	AlwaysDrawModel = true;
+	//glDepthRange_fp (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
+	//AlwaysDrawModel = true;
+	glEnable_fp(GL_ALPHA_TEST);
 	R_DrawAliasModel (e);
-	AlwaysDrawModel = false;
-	glDepthRange_fp (gldepthmin, gldepthmax);
+	glDisable_fp(GL_ALPHA_TEST);
+	//AlwaysDrawModel = false;
+	//glDepthRange_fp (gldepthmin, gldepthmax);
 }
 
 //=============================================================================
