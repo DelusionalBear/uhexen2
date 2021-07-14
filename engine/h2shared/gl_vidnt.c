@@ -2224,8 +2224,8 @@ static void VID_ChangeVideoMode (int newmode)
 	}
 
 	// Reload pre-map pics, fonts, console, etc
-	TexMgr_Init(); //johnfitz
-	Draw_Init();
+	//TexMgr_Init(); //johnfitz
+	//Draw_Init();
 	SCR_Init();
 	// R_Init() stuff:
 	//R_InitParticleTexture();
