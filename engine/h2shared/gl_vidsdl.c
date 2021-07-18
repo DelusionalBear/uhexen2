@@ -1262,7 +1262,8 @@ static void VID_ChangeVideoMode (int newmode)
 
 	// Unload all textures and reset texture counts
 	// D_ClearOpenGLTextures(0);
-	memset (lightmap_textures, 0, sizeof(lightmap_textures));
+	TexMgr_DeleteTextureObjects();
+	//memset (lightmap_textures, 0, sizeof(lightmap_textures));
 
 	// reset all opengl function pointers
 	GL_ResetFunctions();
@@ -1299,13 +1300,23 @@ static void VID_ChangeVideoMode (int newmode)
 	GL_Init();
 	VID_InitGamma();
 	VID_Init8bitPalette();
+	TexMgr_ReloadImages();
+	Con_Printf("BARF31 %d\n", vid_mode.integer);
+	if (cls.state == ca_active)
+	{
+		for (int j = 0; j < cl.maxclients && j < cl.num_entities + 1; j++)
+		{
+			R_TranslateNewPlayerSkin(j);
+		}
+	}
+
 
 	// Reload pre-map pics, fonts, console, etc
 	Draw_Init();
 	SCR_Init();
 	// R_Init() stuff:
-	R_InitParticleTexture();
-	R_InitExtraTextures ();
+	//R_InitParticleTexture();
+	//R_InitExtraTextures ();
 #if defined(H2W)
 	R_InitNetgraphTexture();
 #endif	/* H2W */
@@ -1318,9 +1329,10 @@ static void VID_ChangeVideoMode (int newmode)
 	BGM_Resume ();
 
 	// Reload model textures and player skins
-	Mod_ReloadTextures();
+	//Mod_ReloadTextures();
+	Fog_SetupState();
 	// rebuild the lightmaps
-	GL_BuildLightmaps();
+	//GL_BuildLightmaps();
 	// finished reloading all images
 	draw_reinit = false;
 	scr_disabled_for_loading = temp;
