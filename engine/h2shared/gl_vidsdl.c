@@ -1301,7 +1301,6 @@ static void VID_ChangeVideoMode (int newmode)
 	VID_InitGamma();
 	VID_Init8bitPalette();
 	TexMgr_ReloadImages();
-	Con_Printf("BARF31 %d\n", vid_mode.integer);
 	if (cls.state == ca_active)
 	{
 		for (int j = 0; j < cl.maxclients && j < cl.num_entities + 1; j++)
