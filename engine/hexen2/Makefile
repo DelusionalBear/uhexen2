@@ -126,7 +126,7 @@ USE_MPATH=no
 
 # Enable/disable codecs for streaming music support:
 USE_CODEC_WAVE=yes
-USE_CODEC_FLAC=no
+USE_CODEC_FLAC=yes
 USE_CODEC_MP3=yes
 USE_CODEC_VORBIS=yes
 USE_CODEC_OPUS=no
@@ -259,7 +259,7 @@ GL_LIBS =
 #############################################################
 ifneq ($(USE_SOUND),yes)
 USE_CODEC_WAVE=no
-USE_CODEC_FLAC=no
+USE_CODEC_FLAC=yes
 USE_CODEC_TIMIDITY=no
 USE_CODEC_WILDMIDI=no
 USE_CODEC_MIKMOD=no
