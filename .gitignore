@@ -325,3 +325,4 @@ ASALocalRun/
 *.vcproj
 *.res
 *.exe
+/CppProperties.json
