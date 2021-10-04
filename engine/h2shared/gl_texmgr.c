@@ -802,6 +802,10 @@ static unsigned *TexMgr_ResampleTexture(unsigned *in, int inwidth, int inheight,
 
 	outwidth = TexMgr_Pad(inwidth);
 	outheight = TexMgr_Pad(inheight);
+
+	if (outwidth == 1) outwidth = 2;
+	if (outheight == 1) outheight = 2;
+
 	out = (unsigned *)Hunk_Alloc(outwidth*outheight * 4);
 
 	xfrac = ((inwidth - 1) << 16) / (outwidth - 1);
