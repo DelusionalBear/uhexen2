@@ -143,7 +143,7 @@ static int	scr_erase_lines;
 
 #define	MAXLINES	27
 static int	lines;
-static int	StartC[MAXLINES], EndC[MAXLINES];
+static int	StartC[MAXLINES], EndC[MAXLINES], CorrectionC[MAXLINES];
 
 #if !defined(H2W)
 /* mission pack objectives: */
@@ -195,7 +195,9 @@ static void FindTextBreaks (const char *message, int Width)
 
 	while (1)
 	{
-		if (pos-start >= Width || message[pos] == '@' || message[pos] == 0)
+		if (message[pos] == '\\' && (message[pos + 1] == '1' || message[pos + 1] == '2' || message[pos + 1] == '3' || message[pos + 1] == '4')) CorrectionC[lines] -= 2; 
+		
+		if (pos - start + CorrectionC[lines] >= Width || message[pos] == '@' || message[pos] == 0)
 		{
 			oldlast = lastspace;
 			if (message[pos] == '@' || lastspace == -1 || message[pos] == 0)
@@ -204,6 +206,7 @@ static void FindTextBreaks (const char *message, int Width)
 			StartC[lines] = start;
 			EndC[lines] = lastspace;
 			lines++;
+			CorrectionC[lines] = 0;
 			if (lines == MAXLINES)
 				return;
 			if (message[pos] == '@')
@@ -279,7 +282,7 @@ static void SCR_DrawCenterString (void)
 		cnt = EndC[i] - StartC[i];
 		strncpy (temp, &scr_centerstring[StartC[i]], cnt);
 		temp[cnt] = 0;
-		bx = (40-strlen(temp)) * 8 / 2;
+		bx = (40-strlen(temp) - CorrectionC[i]) * 8 / 2;
 		M_Print (bx, by, temp);
 	}
 }
@@ -1072,7 +1075,7 @@ static void Plaque_Draw (const char *message, qboolean AlwaysDraw)
 		cnt = EndC[i] - StartC[i];
 		strncpy (temp, &message[StartC[i]], cnt);
 		temp[cnt] = 0;
-		bx = (40-strlen(temp)) * 8 / 2;
+		bx = (40-strlen(temp) - CorrectionC[i]) * 8 / 2;
 		M_Print (bx, by, temp);
 	}
 }
@@ -1108,7 +1111,7 @@ static void Info_Plaque_Draw (const char *message)
 		cnt = EndC[i] - StartC[i];
 		strncpy (temp, &message[StartC[i]], cnt);
 		temp[cnt] = 0;
-		bx = (40-strlen(temp)) * 8 / 2;
+		bx = (40-strlen(temp) - CorrectionC[i]) * 8 / 2;
 		M_Print (bx, by, temp);
 	}
 }
@@ -1134,7 +1137,7 @@ static void Bottom_Plaque_Draw (const char *message)
 		cnt = EndC[i] - StartC[i];
 		strncpy (temp, &message[StartC[i]], cnt);
 		temp[cnt] = 0;
-		bx = (40-strlen(temp)) * 8 / 2;
+		bx = (40-strlen(temp) - CorrectionC[i]) * 8 / 2;
 		M_Print (bx, by, temp);
 	}
 }
@@ -1241,7 +1244,7 @@ static void SB_IntermissionOverlay (void)
 			size = elapsed;
 		temp[size] = 0;
 
-		bx = (40-strlen(temp)) * 8 / 2;
+		bx = (40-strlen(temp) - CorrectionC[i]) * 8 / 2;
 		I_Print (bx, by, temp, cl.intermission_flags);
 
 		elapsed -= size;

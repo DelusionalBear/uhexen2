@@ -213,11 +213,36 @@ void M_DrawCharacter (int cx, int line, int num)
 
 void M_Print (int cx, int cy, const char *str)
 {
+	int charset_offset = 256; 
+	
 	while (*str)
 	{
-		M_DrawCharacter (cx, cy, ((unsigned char)(*str))+256);
-		str++;
-		cx += 8;
+		if (str[0] == '\\' && str[1] == '1')
+		{
+			charset_offset = 0;
+			str += 2;
+		}
+		else if (str[0] == '\\' && str[1] == '2')
+		{
+			charset_offset = 128;
+			str += 2;
+		}
+		else if (str[0] == '\\' && str[1] == '3')
+		{
+			charset_offset = 256;
+			str += 2;
+		}
+		else if (str[0] == '\\' && str[1] == '4')
+		{
+			charset_offset = 384;
+			str += 2;
+		}
+		else
+		{
+			M_DrawCharacter(cx, cy, ((unsigned char)(*str)) + charset_offset);
+			str++;
+			cx += 8;
+		}
 	}
 }
 
