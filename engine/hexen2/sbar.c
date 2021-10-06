@@ -525,6 +525,32 @@ static void DrawLowerBar(void)
 		}
 	}
 
+	// DelusionalBear -- Monsters and Secrets printouts. For now
+	
+	int j;
+	j = COM_CheckParm("-nomcnt");	//	check if game was launched with -nomcnt (no monsters count)
+	if (j != 0)						//	if yes, then printout only secrets count
+	{
+		Sbar_DrawSmallString(11, 112, "Secrets:   /   ");
+		sprintf(tempStr, "%03d", (int)cl.stats[STAT_SECRETS]);
+		Sbar_DrawSmallString(58, 112, tempStr);
+		sprintf(tempStr, "%03d", (int)cl.stats[STAT_TOTALSECRETS]);
+		Sbar_DrawSmallString(84, 112, tempStr);
+	}
+	else
+	{
+		Sbar_DrawSmallString(11, 112, "M:    /      S:   /");	//	else, do both
+		sprintf(tempStr, "%04d", (int)cl.stats[STAT_MONSTERS]);
+		Sbar_DrawSmallString(22, 112, tempStr);
+		sprintf(tempStr, "%04d", (int)cl.stats[STAT_TOTALMONSTERS]);
+		Sbar_DrawSmallString(54, 112, tempStr);
+
+		sprintf(tempStr, "%03d", (int)cl.stats[STAT_SECRETS]);
+		Sbar_DrawSmallString(100, 112, tempStr);
+		sprintf(tempStr, "%03d", (int)cl.stats[STAT_TOTALSECRETS]);
+		Sbar_DrawSmallString(126, 112, tempStr);
+	}
+
 	// Portrait
 	sprintf(tempStr, "gfx/cport%d.lmp", playerClass);
 	Sbar_DrawPic(134, 50, Draw_CachePic(tempStr));
