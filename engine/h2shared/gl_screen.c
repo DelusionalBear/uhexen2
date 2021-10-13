@@ -71,6 +71,7 @@
 
 
 static qboolean	scr_initialized;	// ready to draw
+static const char* prev_plaque_con_msg = "";	// DelusionalBear -- because we don't want plaque msg copied to con every frame!
 
 vrect_t		scr_vrect;
 int		glx, gly, glwidth, glheight;
@@ -242,6 +243,8 @@ void SCR_CenterPrint (const char *str)
 
 	FindTextBreaks(scr_centerstring, 38);
 	scr_center_lines = lines;
+	Con_Printf(str);	// DelusionalBear -- copy centerprint message to console.
+	Con_Printf("\n");
 }
 
 static void SCR_DrawCenterString (void)
@@ -968,6 +971,7 @@ void SCR_BringDownConsole (void)
 void SCR_SetPlaqueMessage (const char *msg)
 {
 	plaquemessage = msg;
+	prev_plaque_con_msg = "";
 }
 
 static void Plaque_Draw (const char *message, qboolean AlwaysDraw)
@@ -987,6 +991,11 @@ static void Plaque_Draw (const char *message, qboolean AlwaysDraw)
 	by = (25-lines) * 8 / 2 + ((vid.height - 200)>>1);
 	M_DrawTextBox (32, by - 16, PLAQUE_WIDTH + 4, lines + 2);
 
+	if (prev_plaque_con_msg != message)
+	{
+		//plaque_just_copied = true;
+		Con_Printf("\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37\n");
+	}
 	for (i = 0; i < lines; i++, by += 8)
 	{
 		cnt = EndC[i] - StartC[i];
@@ -994,7 +1003,18 @@ static void Plaque_Draw (const char *message, qboolean AlwaysDraw)
 		temp[cnt] = 0;
 		bx = (40-strlen(temp) - CorrectionC[i]) * 8 / 2;
 		M_Print (bx, by, temp);
+		if (prev_plaque_con_msg != message)
+		{
+			Con_Printf(temp);
+			Con_Printf("\n");
+		}
 	}
+	if (prev_plaque_con_msg != message)
+	{
+		Con_Printf("\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37\n\n");
+		prev_plaque_con_msg = message;
+	}
+	Con_ClearNotify(); // DelusionalBear -- clear notify lines, because we don't want plaque message to be printed on screen
 }
 
 #if !defined(H2W)
