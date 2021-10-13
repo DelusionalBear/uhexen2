@@ -993,7 +993,6 @@ static void Plaque_Draw (const char *message, qboolean AlwaysDraw)
 
 	if (prev_plaque_con_msg != message)
 	{
-		//plaque_just_copied = true;
 		Con_Printf("\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37\n");
 	}
 	for (i = 0; i < lines; i++, by += 8)
